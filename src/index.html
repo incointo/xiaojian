@@ -18,10 +18,12 @@
             </div>
 
             <div class="tasks"></div>
-            <div class="new-task-container">
+            <div class="new-tasks-section">
+                <div class="new-task-container">
                     <img src="/icons/plus.svg" alt="Add Task">
                     <input type="text" class="new-task-input" placeholder="What needs doing today?"/>
 
+            </div>
             </div>
         </div>
     </div>
@@ -75,6 +77,25 @@
             } catch (error) {
                 console.error('Failed to load tasks:', error);
             }
+        }
+
+        function wait(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        async function completeTask(taskItem) {
+            if (!taskItem || taskItem.classList.contains('is-completing')) return;
+
+            taskItem.classList.add('is-completing');
+            taskItem.classList.add('completed');
+
+            await wait(420);
+
+            taskItem.classList.add('removing');
+            await wait(580);
+
+            taskItem.remove();
+            await persistTasks();
         }
 
         tasksContainer.addEventListener('pointerdown', (e) => {
@@ -141,6 +162,15 @@
             } else {
                 tasksContainer.appendChild(activeDrag.placeholder);
             }
+        });
+
+        tasksContainer.addEventListener('click', async (e) => {
+            const tickBox = e.target.closest('.tick-box');
+            if (!tickBox) return;
+            if (activeDrag) return;
+
+            const taskItem = tickBox.closest('.task-item');
+            await completeTask(taskItem);
         });
 
         const stopDrag = async () => {

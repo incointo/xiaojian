@@ -93,14 +93,14 @@ pub fn run() {
             // Hide on blur after startup grace period (avoid launch focus jitter)
             let window_clone = main_window.clone();
             let startup_instant = Instant::now();
-            main_window.on_window_event(move |event| {
-                if let WindowEvent::Focused(false) = event {
-                    if startup_instant.elapsed() < Duration::from_millis(900) {
-                        return;
-                    }
-                    let _ = window_clone.hide();
-                }
-            });
+            // main_window.on_window_event(move |event| {
+            //     if let WindowEvent::Focused(false) = event {
+            //         if startup_instant.elapsed() < Duration::from_millis(900) {
+            //             return;
+            //         }
+            //         let _ = window_clone.hide();
+            //     }
+            // });
 
             Ok(())
         })

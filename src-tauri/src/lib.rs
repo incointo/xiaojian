@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WindowEvent};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -88,15 +89,28 @@ pub fn run() {
 
             // Tray icon setup (use explicit asset for reliable updates)
             let icon = tauri::include_image!("icons/32x32.png");
+            let exit_item = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
+            let tray_menu = Menu::with_items(app, &[&exit_item])?;
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
+                .menu(&tray_menu)
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click { .. } = event {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
+                    }
+                })
+                .on_menu_event(|app, event| {
+                    if event.id().as_ref() == "exit" {
+                        app.exit(0);
                     }
                 })
                 .build(app)?;

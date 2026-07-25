@@ -1,21 +1,44 @@
 # TickNest
 
-A lightweight desktop to-do app built with Tauri 2, vanilla HTML/CSS/JS, and Rust.
+<p align="center">
+	<b>A tray-first desktop to-do app that stays out of your way.</b><br />
+	Built with Tauri 2, Rust, and Vanilla HTML/CSS/JS.
+</p>
 
-TickNest is designed to stay out of your way: fast startup, compact UI, tray-first workflow, and simple local persistence.
+<p align="center">
+	<img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-blue" />
+	<img alt="Rust" src="https://img.shields.io/badge/Rust-stable-orange" />
+	<img alt="Platform" src="https://img.shields.io/badge/Platform-Windows-lightgrey" />
+	<img alt="UI" src="https://img.shields.io/badge/UI-Compact-success" />
+</p>
 
-## Highlights
+TickNest is a lightweight productivity companion for quick task capture and completion. It opens fast, lives in the tray, and keeps your list persisted locally with zero account setup.
 
-- Compact floating to-do window
-- Drag-and-drop reordering with a handle
+## Why TickNest
+
+- Minimal, distraction-free floating window
+- Fast task flow: add, reorder, complete, done
+- Local-first persistence with a simple tasks.json file
+- No cloud dependency, no login, no noise
+
+## Features
+
+- Drag-and-drop reordering with a dedicated handle
 - Completion animation before task removal
-- Empty-state UI when there are no tasks
-- Local JSON persistence for tasks
-- System tray integration:
-	- Left click shows and focuses the app
-	- Right click opens a tray menu with Exit
-- Single-instance behavior (second launch focuses the running app)
+- Empty-state interface when list is blank
+- Local JSON persistence via Rust commands
+- Single-instance app behavior
+- Tray integration:
+	- Left click shows and focuses the window
+	- Right click opens tray menu with Exit
 - Startup placement at bottom-right of the primary monitor
+
+## Preview
+
+Add your screenshots or GIFs and keep this section updated as UI evolves.
+
+![TickNest main view](docs/images/ticknest-main.png)
+![TickNest drag and reorder](docs/images/ticknest-drag.gif)
 
 ## Tech Stack
 
@@ -25,62 +48,81 @@ TickNest is designed to stay out of your way: fast startup, compact UI, tray-fir
 
 ## Project Structure
 
-- src: Frontend files (HTML/CSS/JS assets)
-- src-tauri: Rust backend, window/tray logic, Tauri config
+- src: frontend assets and UI
+- src-tauri: Rust backend, tray/window lifecycle, Tauri config
 
-## Requirements
+## Getting Started
+
+### Prerequisites
 
 - Node.js 18+
 - Rust (stable)
-- Tauri prerequisites for your OS:
-	- https://tauri.app/start/prerequisites/
+- Tauri OS prerequisites: https://tauri.app/start/prerequisites/
 
-## Run Locally
-
-1. Install dependencies
+### Install
 
 ```bash
 npm install
 ```
 
-2. Start in development mode
+### Development
 
 ```bash
 npm run tauri dev
 ```
 
-3. Build release binaries
+### Build
 
 ```bash
 npm run tauri build
 ```
 
-## Data Storage
+## App Behavior
 
-Tasks are saved to a file named tasks.json next to the application executable.
+### Single Instance
 
-- If tasks.json does not exist, TickNest creates it automatically.
-- Reads and writes are handled by Rust commands exposed to the frontend.
+If TickNest is already running, launching it again will focus and reveal the existing window instead of creating a second instance.
 
-## Tray and Window Behavior
+### Tray Menu
 
-- The app runs as a single instance.
-- Launching TickNest again does not create a second window; it focuses the running one.
-- Window is positioned near the bottom-right of the primary monitor.
+- Left-click tray icon: reveal and focus app
+- Right-click tray icon: open menu
+- Exit menu item: quit app cleanly
+
+### Task Persistence
+
+Tasks are saved to tasks.json next to the executable.
+
+- Missing file is auto-created
+- Reads and writes happen through Tauri commands in Rust
 
 ## Configuration
 
-Core desktop settings are in src-tauri/tauri.conf.json, including:
+Main desktop configuration lives in src-tauri/tauri.conf.json.
 
-- Product name and bundle identifier
-- Window size and behavior (always-on-top, frameless, transparent)
-- Bundle targets and app icons
+Key settings include:
 
-## Development Notes
+- Product name and app identifier
+- Frameless always-on-top compact window
+- App icon and bundle target settings
 
-- Frontend distribution directory is configured as src.
-- Main Rust entry and app wiring live in src-tauri/src/lib.rs.
+## Roadmap
+
+- Add keyboard shortcuts for add and complete actions
+- Add optional startup-on-login toggle
+- Add task categories or quick tags
+- Add import/export for tasks
+- Add optional themes
+
+## Contributing
+
+Contributions are welcome.
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes with clear messages
+4. Open a pull request with screenshots for UI changes
 
 ## License
 
-Add your preferred license here (for example MIT).
+Choose a license and add it here (MIT is a common choice for this kind of app).

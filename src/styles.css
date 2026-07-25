@@ -43,9 +43,13 @@ body{
 }
 
 .title-bar{
-    margin-bottom: 24px;
+    margin-bottom: 8px;
 }
-
+ 
+.separator{
+    height: 1px;
+    background: #F8A903;
+}
 .app-title{
     font-weight: 600;
     font-size: 1.2rem;
@@ -58,9 +62,9 @@ body{
     gap:16px;
     flex:1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 14px 12px;
-    margin: -14px -12px;
-    margin: -14 px -12px -20px -12px;
+    margin: 0px -12px -12px -12px;
 
 }
 
@@ -108,6 +112,7 @@ body{
     cursor: grab;
     display: flex;
     align-items: center;
+    flex-shrink: 0;
     user-select: none;
     -webkit-user-drag: none;
     touch-action: none;
@@ -127,11 +132,17 @@ body{
     display: flex;
     gap:12px;
     align-items: center;
+    flex: 1;
+    min-width: 0;
 }
 
 .task-item  .tick-box{
     height: 24px;
     width: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    flex: 0 0 24px;
+    flex-shrink: 0;
     border: 2px solid #F8A903;
     border-radius: 20px;
     position: relative;
@@ -195,6 +206,8 @@ body{
 
 .task-title{
     font-size: 1rem;
+    line-height: 1.35;
+    word-break: break-word;
     align-content: center;
 }
 
@@ -211,9 +224,7 @@ body{
     display: flex;
     gap:12px;
     margin-top: 12px;
-
-
-    /* align-items: center; */
+    margin-bottom: -4px;
 }
 
 .new-task-container .new-task-input{

@@ -20,6 +20,11 @@
             <div class="separator"></div>
 
             <div class="tasks"></div>
+            <div class="empty-state" aria-live="polite">
+                <img src="/icons/empty-state.svg" alt="Empty checklist illustration" />
+                <h3>So empty...</h3>
+                <p>Add your first task below and start ticking things off ✨</p>
+            </div>
             <div class="new-tasks-section">
                 <div class="separator"></div>
 
@@ -33,9 +38,19 @@
     </div>
     <script>
         const tasksContainer = document.querySelector('.tasks');
+        const emptyState = document.querySelector('.empty-state');
         const newTaskInput = document.querySelector('.new-task-input');
         const invoke = window.__TAURI__.core.invoke;
         let activeDrag = null;
+
+        function updateEmptyState() {
+            const hasTasks = tasksContainer.querySelectorAll('.task-item').length > 0;
+            if (emptyState) {
+                emptyState.classList.toggle('show', !hasTasks);
+            }
+
+            tasksContainer.style.display = hasTasks ? 'flex' : 'none';
+        }
 
         function createTaskItem(title) {
             const taskItem = document.createElement('div');
@@ -63,6 +78,8 @@
                 const taskItem = createTaskItem(task.title);
                 tasksContainer.appendChild(taskItem);
             });
+
+            updateEmptyState();
         }
 
         function getTasksFromDom() {
@@ -86,6 +103,7 @@
                 renderTasks(tasks);
             } catch (error) {
                 console.error('Failed to load tasks:', error);
+                updateEmptyState();
             }
         }
 
@@ -105,6 +123,7 @@
             await wait(580);
 
             taskItem.remove();
+            updateEmptyState();
             await persistTasks();
         }
 
@@ -114,6 +133,7 @@
 
             const taskItem = createTaskItem(title);
             tasksContainer.insertBefore(taskItem, tasksContainer.firstChild);
+            updateEmptyState();
 
             newTaskInput.value = '';
             await persistTasks();

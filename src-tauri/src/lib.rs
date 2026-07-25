@@ -59,6 +59,16 @@ async fn hide_window(window: tauri::Window) {
     let _ = window.hide();
 }
 
+fn env_flag_enabled(name: &str) -> bool {
+    match std::env::var(name) {
+        Ok(value) => matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        Err(_) => false,
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -115,17 +125,19 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Hide on blur after startup grace period
-            let window_clone = main_window.clone();
-            let startup_instant = Instant::now();
-            main_window.on_window_event(move |event| {
-                if let WindowEvent::Focused(false) = event {
-                    if startup_instant.elapsed() < Duration::from_millis(900) {
-                        return;
+            if !env_flag_enabled("TICKNEST_DISABLE_AUTO_HIDE") {
+                // Hide on blur after startup grace period.
+                let window_clone = main_window.clone();
+                let startup_instant = Instant::now();
+                main_window.on_window_event(move |event| {
+                    if let WindowEvent::Focused(false) = event {
+                        if startup_instant.elapsed() < Duration::from_millis(900) {
+                            return;
+                        }
+                        let _ = window_clone.hide();
                     }
-                    let _ = window_clone.hide();
-                }
-            });
+                });
+            }
 
             Ok(())
         })

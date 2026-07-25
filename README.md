@@ -35,10 +35,10 @@ TickNest is a lightweight productivity companion for quick task capture and comp
 
 ## Preview
 
-Add your screenshots or GIFs and keep this section updated as UI evolves.
+TickNest in Action!
 
-![TickNest main view](docs/images/ticknest-main.svg)
-![TickNest drag and reorder](docs/images/ticknest-drag.svg)
+![TickNest main view](docs/images/vid1.gif)
+![TickNest drag and reorder](docs/images/vid2.gif)
 
 ## Tech Stack
 

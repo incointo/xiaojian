@@ -51,8 +51,23 @@ body{
     background: #F8A903;
 }
 .app-title{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-weight: 600;
     font-size: 1.06rem;
+    color: #4F3517;
+}
+
+.app-title-icon {
+    width: 20px;
+    height: 20px;
+    display: block;
+    filter: drop-shadow(0 1px 1px rgba(112, 79, 35, 0.2));
+}
+
+.app-title-text {
+    letter-spacing: 0.2px;
 }
 
 .tasks{

@@ -80,6 +80,35 @@ fn env_flag_enabled(name: &str) -> bool {
     }
 }
 
+fn place_window_bottom_right(
+    app: &tauri::AppHandle,
+    window: &tauri::WebviewWindow,
+) -> Result<(), tauri::Error> {
+    let Some(monitor) = app.primary_monitor()? else {
+        return Ok(());
+    };
+
+    let work_area = monitor.work_area();
+    let window_size = window.outer_size()?;
+
+    let margin_x: i32 = 24;
+    let margin_y: i32 = 18;
+
+    let min_x = work_area.position.x;
+    let min_y = work_area.position.y;
+    let max_x = work_area.position.x + work_area.size.width as i32 - window_size.width as i32;
+    let max_y = work_area.position.y + work_area.size.height as i32 - window_size.height as i32;
+
+    let desired_x = work_area.position.x + work_area.size.width as i32 - window_size.width as i32 - margin_x;
+    let desired_y = work_area.position.y + work_area.size.height as i32 - window_size.height as i32 - margin_y;
+
+    let clamped_x = desired_x.clamp(min_x, max_x.max(min_x));
+    let clamped_y = desired_y.clamp(min_y, max_y.max(min_y));
+
+    window.set_position(tauri::PhysicalPosition::new(clamped_x, clamped_y))?;
+    Ok(())
+}
+
 #[cfg(target_os = "windows")]
 fn startup_exe_command() -> Result<String, String> {
     let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {e}"))?;
@@ -161,6 +190,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
+                let _ = place_window_bottom_right(app, &window);
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -176,21 +206,10 @@ pub fn run() {
             };
 
             let main_window = app.get_webview_window("main").expect("main window not found");
+            let app_handle = app.handle().clone();
 
             // Initial positioning
-            if let Some(monitor) = app.primary_monitor()? {
-                let window_size = main_window.inner_size()?;
-                let work_area = monitor.work_area();
-
-                let x = work_area.position.x as f64 + work_area.size.width as f64
-                    - window_size.width as f64
-                    - 24.0;
-                let y = work_area.position.y as f64 + work_area.size.height as f64
-                    - window_size.height as f64
-                    - 18.0;
-
-                main_window.set_position(tauri::LogicalPosition::new(x, y))?;
-            }
+            place_window_bottom_right(&app_handle, &main_window)?;
 
             // Tray icon setup (use explicit asset for reliable updates)
             let icon = tauri::include_image!("icons/32x32.png");
@@ -217,6 +236,7 @@ pub fn run() {
                     {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
+                            let _ = place_window_bottom_right(&app, &window);
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
@@ -239,19 +259,22 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            if !env_flag_enabled("TICKNEST_DISABLE_AUTO_HIDE") {
-                // Hide on blur after startup grace period.
-                let window_clone = main_window.clone();
-                let startup_instant = Instant::now();
-                main_window.on_window_event(move |event| {
-                    if let WindowEvent::Focused(false) = event {
-                        if startup_instant.elapsed() < Duration::from_millis(900) {
-                            return;
-                        }
-                        let _ = window_clone.hide();
+            let app_handle_for_events = app_handle.clone();
+            let window_for_events = main_window.clone();
+            let auto_hide_enabled = !env_flag_enabled("TICKNEST_DISABLE_AUTO_HIDE");
+            let startup_instant = Instant::now();
+            main_window.on_window_event(move |event| match event {
+                WindowEvent::ScaleFactorChanged { .. } | WindowEvent::Resized(_) => {
+                    let _ = place_window_bottom_right(&app_handle_for_events, &window_for_events);
+                }
+                WindowEvent::Focused(false) if auto_hide_enabled => {
+                    if startup_instant.elapsed() < Duration::from_millis(900) {
+                        return;
                     }
-                });
-            }
+                    let _ = window_for_events.hide();
+                }
+                _ => {}
+            });
 
             Ok(())
         })

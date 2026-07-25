@@ -94,8 +94,11 @@ How publishing works:
 Release steps:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+npm run version:bump -- 0.1.1
+npm run version:check
+git add .
+git commit -m "Bump version to 0.1.1"
+npm run release:tag -- 0.1.1 --push
 ```
 
 Then:

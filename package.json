@@ -14,7 +14,10 @@
   },
   "type": "module",
   "scripts": {
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "version:check": "node scripts/check-versions.mjs",
+    "version:bump": "node scripts/bump-version.mjs",
+    "release:tag": "node scripts/release-tag.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"

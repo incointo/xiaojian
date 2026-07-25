@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::{Manager, WindowEvent};
+use tauri::Manager;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Task {
@@ -75,8 +74,8 @@ pub fn run() {
                 main_window.set_position(tauri::LogicalPosition::new(x, y))?;
             }
 
-            // Tray icon setup
-            let icon = app.default_window_icon().unwrap().clone();
+            // Tray icon setup (use explicit asset for reliable updates)
+            let icon = tauri::include_image!("icons/32x32.png");
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
                 .on_tray_icon_event(|tray, event| {
@@ -90,9 +89,7 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Hide on blur after startup grace period (avoid launch focus jitter)
-            let window_clone = main_window.clone();
-            let startup_instant = Instant::now();
+            // Hide on blur (currently disabled)
             // main_window.on_window_event(move |event| {
             //     if let WindowEvent::Focused(false) = event {
             //         if startup_instant.elapsed() < Duration::from_millis(900) {

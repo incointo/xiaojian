@@ -1,0 +1,28 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="512" y1="64" x2="512" y2="960" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD37A"/>
+      <stop offset="1" stop-color="#F8A903"/>
+    </linearGradient>
+    <linearGradient id="nest" x1="512" y1="590" x2="512" y2="840" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9A6A2B"/>
+      <stop offset="1" stop-color="#704F23"/>
+    </linearGradient>
+    <linearGradient id="egg" x1="512" y1="312" x2="512" y2="620" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF9ED"/>
+      <stop offset="1" stop-color="#FFEBC5"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="64" y="64" width="896" height="896" rx="230" fill="url(#bg)"/>
+
+  <ellipse cx="512" cy="700" rx="290" ry="108" fill="url(#nest)"/>
+  <ellipse cx="512" cy="690" rx="260" ry="86" fill="#8A5E28" opacity="0.7"/>
+
+  <ellipse cx="512" cy="470" rx="210" ry="230" fill="url(#egg)"/>
+
+  <circle cx="512" cy="470" r="142" fill="#F8A903"/>
+  <path d="M438 468L490 520L592 418" stroke="white" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <path d="M288 686C350 640 674 640 736 686" stroke="#B07A35" stroke-width="22" stroke-linecap="round" opacity="0.55"/>
+</svg>

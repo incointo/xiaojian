@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Task {
@@ -60,17 +61,28 @@ async fn hide_window(window: tauri::Window) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .setup(|app| {
             let main_window = app.get_webview_window("main").expect("main window not found");
 
             // Initial positioning
-            if let Some(monitor) = main_window.current_monitor()? {
-                let monitor_size = monitor.size();
+            if let Some(monitor) = app.primary_monitor()? {
                 let window_size = main_window.inner_size()?;
                 let work_area = monitor.work_area();
-                let taskbar_height = monitor_size.height as f64 - work_area.size.height as f64;
-                let x = monitor_size.width as f64 - window_size.width as f64 - 24.0;
-                let y = monitor_size.height as f64 - window_size.height as f64 - taskbar_height - 18.0;
+
+                let x = work_area.position.x as f64 + work_area.size.width as f64
+                    - window_size.width as f64
+                    - 24.0;
+                let y = work_area.position.y as f64 + work_area.size.height as f64
+                    - window_size.height as f64
+                    - 18.0;
+
                 main_window.set_position(tauri::LogicalPosition::new(x, y))?;
             }
 
@@ -89,15 +101,17 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Hide on blur (currently disabled)
-            // main_window.on_window_event(move |event| {
-            //     if let WindowEvent::Focused(false) = event {
-            //         if startup_instant.elapsed() < Duration::from_millis(900) {
-            //             return;
-            //         }
-            //         let _ = window_clone.hide();
-            //     }
-            // });
+            // Hide on blur after startup grace period
+            let window_clone = main_window.clone();
+            let startup_instant = Instant::now();
+            main_window.on_window_event(move |event| {
+                if let WindowEvent::Focused(false) = event {
+                    if startup_instant.elapsed() < Duration::from_millis(900) {
+                        return;
+                    }
+                    let _ = window_clone.hide();
+                }
+            });
 
             Ok(())
         })

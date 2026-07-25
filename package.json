@@ -2,6 +2,16 @@
   "name": "ticknest",
   "private": true,
   "version": "0.1.0",
+  "author": "Aakash",
+  "license": "MIT",
+  "homepage": "https://github.com/AakashVarma1995/TickNest",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AakashVarma1995/TickNest.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AakashVarma1995/TickNest/issues"
+  },
   "type": "module",
   "scripts": {
     "tauri": "tauri"

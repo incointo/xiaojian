@@ -1,6 +1,10 @@
 # TickNest
 
 <p align="center">
+	<img src="src/icons/ticknest-mark.svg" alt="TickNest icon" width="96" />
+</p>
+
+<p align="center">
 	<b>A tray-first desktop to-do app that stays out of your way.</b><br />
 	Built with Tauri 2, Rust, and Vanilla HTML/CSS/JS.
 </p>
@@ -21,7 +25,7 @@ TickNest is a lightweight productivity companion for quick task capture and comp
 - Local-first persistence with a simple tasks.json file
 - No cloud dependency, no login, no noise
 
-## Features
+## <img src="src/icons/ticknest-mark.svg" alt="TickNest" width="18" /> Features
 
 - Drag-and-drop reordering with a dedicated handle
 - Completion animation before task removal
@@ -125,4 +129,4 @@ Contributions are welcome.
 
 ## License
 
-Choose a license and add it here (MIT is a common choice for this kind of app).
+This project is licensed under the MIT License. See the LICENSE file for details.

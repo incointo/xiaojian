@@ -1,0 +1,119 @@
+@font-face {
+  font-family: 'Satoshi'; 
+  src: url('fonts/Satoshi-Regular.otf') format('woff2'),
+       url('fonts/Satoshi-Bold.otf') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap; /* Keeps text visible while loading */
+}
+
+body{
+    height:100vh;
+}
+
+
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing: border-box;
+    font-family: 'Satoshi'
+}
+
+.outer-container{
+    background: linear-gradient(180deg,rgba(247, 206, 132, 1) 0%, rgba(248, 169, 3, 1) 100%);
+    border-radius: 8px;
+    padding-left: 6px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.outer-container.hidden {
+    transform: translateY(100%);
+    opacity: 0;
+}
+
+.container{
+    padding-left: 8px;
+    background: #fff5eb;
+    /* height: 600px; */
+    height:100vh;
+    border-radius: 8px;
+    /* box-shadow: inset 0 0 50px -40px rgba(248, 169, 3, 1); */
+    padding:24px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    /* border:1px solid black; */
+    /* background: red; */
+
+}
+
+.title-bar{
+    margin-bottom: 24px;
+}
+
+.app-title{
+    font-weight: 600;
+    font-size: 1.2rem;
+}
+
+.tasks{
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 24px;
+    gap:16px;
+    flex:1;
+}
+
+.task-item{
+    display: flex;
+    width: 100%;
+    background: white;
+    padding: 12px 24px;
+    border-radius: 16px;
+    box-shadow: 0 0 30px 4px rgba(158, 122, 5, .1);
+    justify-content: space-between;
+}
+
+.task-details{
+    display: flex;
+    gap:12px;
+    align-items: center;
+}
+
+.task-item  .tick-box{
+    height: 24px;
+    width: 24px;
+    /* border: 2px solid #F8A903; */
+    border: 2px solid #F8A903;
+    border-radius: 20px;
+}
+
+.task-title span{
+    font-size: 1rem;
+    align-content: center;
+}
+
+.new-task-container{
+    background: #FEF1CA;
+    border: 1px solid #fcebcb;
+    padding: 12px 24px;
+    border-radius: 16px;
+    display: flex;
+    gap:12px;
+
+    /* align-items: center; */
+}
+
+.new-task-container .new-task-input{
+    color:#704F23;
+    background: none;
+    outline: none;
+    border:none;
+    font-size: 1rem;
+    width: 100%;
+    align-content: center;
+
+}

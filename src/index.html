@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="outer-container">
+        <div class="container">
+            <div class="title-bar">
+                <div class="app-title">
+                    TickNest
+                </div>
+            </div>
+
+            <div class="tasks">
+                <div class="task-item">
+                    <div class="task-details">
+                        <div class="tick-box">
+                        </div>
+                        <span class="task-title">Buy Groceries</span>
+                    </div>
+                    <div class="grabber">
+                        <img src="/icons/grabber.svg" alt="Grabber">
+                    </div>
+                </div>
+                <div class="task-item">
+                    <div class="task-details">
+                        <div class="tick-box">
+                        </div>
+                        <span class="task-title">Standup Meeting</span>
+                    </div>
+                    <div class="grabber">
+                        <img src="/icons/grabber.svg" alt="Grabber">
+                    </div>
+                </div>
+                <div class="task-item">
+                    <div class="task-details">
+                        <div class="tick-box">
+                        </div>
+                        <span class="task-title">Phone Recharge</span>
+                    </div>
+                    <div class="grabber">
+                        <img src="/icons/grabber.svg" alt="Grabber">
+                    </div>
+                </div>
+
+
+            </div>
+            <div class="new-task-container">
+                    <img src="/icons/plus.svg" alt="Add Task">
+                    <input type="text" class="new-task-input" placeholder="What needs doing today?"/>
+
+            </div>
+        </div>
+    </div>
+    <script>
+        const { listen } = window.__TAURI__.event;
+        const container = document.querySelector('.outer-container');
+
+        listen('animate-hide', () => {
+            container.classList.add('hidden');
+        });
+
+        listen('animate-show', () => {
+            container.classList.remove('hidden');
+        });
+    </script>
+</body>
+
+</html>

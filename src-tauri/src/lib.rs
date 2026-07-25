@@ -1,7 +1,5 @@
-use tauri::{Manager, Emitter};
+use tauri::{Manager, WindowEvent};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
-use tauri::WindowEvent;
-use std::time::Duration;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -11,9 +9,6 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 async fn hide_window(window: tauri::Window) {
-    let _ = window.emit("animate-hide", ());
-    // Wait for the CSS animation to complete (0.3s)
-    std::thread::sleep(Duration::from_millis(300));
     let _ = window.hide();
 }
 
@@ -44,7 +39,6 @@ pub fn run() {
                     if let TrayIconEvent::Click { .. } = event {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.emit("animate-show", ());
                             let _ = window.show();
                             let _ = window.set_focus();
                         }
@@ -56,12 +50,7 @@ pub fn run() {
             let window_clone = main_window.clone();
             main_window.on_window_event(move |event| {
                 if let WindowEvent::Focused(false) = event {
-                    let w = window_clone.clone();
-                    tauri::async_runtime::spawn(async move {
-                        let _ = w.emit("animate-hide", ());
-                        std::thread::sleep(Duration::from_millis(300));
-                        let _ = w.hide();
-                    });
+                    let _ = window_clone.hide();
                 }
             });
 

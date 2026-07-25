@@ -58,14 +58,95 @@ body{
 .tasks{
     display: flex;
     flex-direction: column;
-    margin-bottom: 16px;
-    gap:10px;
+    margin-bottom: 0;
+    gap:0;
     flex:1;
     overflow-y: auto;
     overflow-x: hidden;
+    overflow-anchor: none;
     padding: 10px 10px;
     margin: 0px -10px -8px -10px;
 
+}
+
+.tasks-wrapper {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    margin-bottom: 16px;
+}
+
+.empty-state {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    flex-direction: column;
+    padding: 24px 18px;
+    color: #87612f;
+    pointer-events: none;
+}
+
+.empty-state.show {
+    display: flex;
+}
+
+.empty-state img {
+    width: 118px;
+    height: auto;
+    opacity: 0.95;
+    margin-bottom: 12px;
+}
+
+.empty-state h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #704F23;
+}
+
+.empty-state p {
+    font-size: 0.86rem;
+    line-height: 1.35;
+    color: #9a7645;
+    max-width: 230px;
+}
+
+/* Dense + clean scrollbar */
+.tasks {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(137, 101, 45, 0.5) transparent;
+}
+
+.tasks::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tasks::-webkit-scrollbar-track {
+    background: rgba(255, 238, 204, 0.35);
+    border-radius: 10px;
+    margin: 6px 0;
+}
+
+.tasks::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(200, 155, 70, 0.72), rgba(144, 104, 36, 0.72));
+    border-radius: 10px;
+    border: 1px solid rgba(255, 247, 227, 0.75);
+    transition: background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tasks::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, rgba(214, 168, 82, 0.95), rgba(152, 109, 38, 0.95));
+    box-shadow: 0 0 0 1px rgba(198, 145, 55, 0.22);
+}
+
+/* Hide top/bottom arrow buttons */
+.tasks::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
 }
 
 .task-item{
@@ -74,9 +155,15 @@ body{
     background: white;
     padding: 10px 16px;
     border-radius: 14px;
-    box-shadow: 0 8px 18px rgba(158, 122, 5, 0.14);
+    box-shadow: 0 1px 2px rgba(146, 108, 35, 0.09),
+                0 5px 12px rgba(158, 122, 5, 0.11);
     justify-content: space-between;
+    margin-bottom: 10px;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.task-item:last-child {
+    margin-bottom: 0;
 }
 
 .task-item.is-completing {
@@ -84,14 +171,26 @@ body{
 }
 
 .task-item.removing {
-    animation: taskVanish 0.56s ease forwards;
+    overflow: hidden;
+    box-shadow: none;
+    transition: height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+                padding 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+                margin-bottom 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.22s ease-out;
+    height: 0;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    opacity: 0;
 }
 
 .drag-clone {
     position: fixed;
     pointer-events: none;
     z-index: 9999;
-    box-shadow: 0 12px 30px rgba(158, 122, 5, 0.35);
+    box-shadow: 0 3px 8px rgba(146, 108, 35, 0.14),
+                0 9px 18px rgba(158, 122, 5, 0.19);
     transform: scale(1.02);
     background: white;
     border-radius: 16px;
@@ -100,7 +199,11 @@ body{
 }
 
 .task-placeholder {
+    display: block;
+    flex: 0 0 auto;
     width: 100%;
+    min-height: 22px;
+    margin-bottom: 10px;
     border: 2px dashed #F8A903;
     border-radius: 16px;
     background: rgba(254, 241, 202, 0.35);
@@ -182,25 +285,6 @@ body{
     100% {
         transform: translate(-50%, -56%) rotate(45deg) scale(1);
         opacity: 1;
-    }
-}
-
-@keyframes taskVanish {
-    0% {
-        opacity: 1;
-        transform: translateX(0) scale(1);
-        max-height: 120px;
-        margin-bottom: 0;
-        padding-top: 12px;
-        padding-bottom: 12px;
-    }
-    100% {
-        opacity: 0;
-        transform: translateX(28px) scale(0.96);
-        max-height: 0;
-        margin-bottom: -16px;
-        padding-top: 0;
-        padding-bottom: 0;
     }
 }
 

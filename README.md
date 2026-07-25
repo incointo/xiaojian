@@ -81,6 +81,30 @@ npm run tauri dev
 npm run tauri build
 ```
 
+## Releases
+
+This repository includes a GitHub Actions workflow at .github/workflows/release.yml.
+
+How publishing works:
+
+- Push a tag that starts with v (example: v0.1.0)
+- GitHub Actions builds the Windows release artifact
+- A GitHub draft Release is created automatically with attached build files
+
+Release steps:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Then:
+
+- Open GitHub -> Releases -> Drafts
+- Open the generated draft
+- Review title, notes, and attached files
+- Click Publish release when ready
+
 ## App Behavior
 
 ### Single Instance

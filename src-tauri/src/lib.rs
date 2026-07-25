@@ -2,9 +2,20 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WindowEvent};
+#[cfg(target_os = "windows")]
+use winreg::enums::HKEY_CURRENT_USER;
+#[cfg(target_os = "windows")]
+use winreg::RegKey;
+
+const STARTUP_MENU_ID: &str = "launch-at-startup";
+const STARTUP_REG_VALUE_NAME: &str = "TickNest";
+#[cfg(target_os = "windows")]
+const APP_PREFS_REG_PATH: &str = "Software\\TickNest";
+#[cfg(target_os = "windows")]
+const APP_PREF_STARTUP_VALUE_NAME: &str = "LaunchAtStartup";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Task {
@@ -69,6 +80,82 @@ fn env_flag_enabled(name: &str) -> bool {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn startup_exe_command() -> Result<String, String> {
+    let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {e}"))?;
+    Ok(format!("\"{}\"", exe_path.display()))
+}
+
+#[cfg(target_os = "windows")]
+fn windows_run_key() -> Result<RegKey, String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (run_key, _) = hkcu
+        .create_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Run")
+        .map_err(|e| format!("Failed to open startup registry key: {e}"))?;
+    Ok(run_key)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_prefs_key() -> Result<RegKey, String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (prefs_key, _) = hkcu
+        .create_subkey(APP_PREFS_REG_PATH)
+        .map_err(|e| format!("Failed to open app prefs registry key: {e}"))?;
+    Ok(prefs_key)
+}
+
+#[cfg(target_os = "windows")]
+fn set_windows_autostart(enabled: bool) -> Result<(), String> {
+    if cfg!(debug_assertions) {
+        return Ok(());
+    }
+
+    let run_key = windows_run_key()?;
+    if enabled {
+        let exe_path_quoted = startup_exe_command()?;
+        run_key
+            .set_value(STARTUP_REG_VALUE_NAME, &exe_path_quoted)
+            .map_err(|e| format!("Failed to set startup registry value: {e}"))?;
+    } else {
+        let _ = run_key.delete_value(STARTUP_REG_VALUE_NAME);
+    }
+
+    let pref_value: u32 = if enabled { 1 } else { 0 };
+    windows_prefs_key()?
+        .set_value(APP_PREF_STARTUP_VALUE_NAME, &pref_value)
+        .map_err(|e| format!("Failed to persist startup preference: {e}"))?;
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_windows_autostart(_enabled: bool) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn launch_at_startup_enabled() -> Result<bool, String> {
+    if cfg!(debug_assertions) {
+        return Ok(false);
+    }
+
+    let prefs_key = windows_prefs_key()?;
+    let pref: Result<u32, _> = prefs_key.get_value(APP_PREF_STARTUP_VALUE_NAME);
+
+    let enabled = match pref {
+        Ok(value) => value != 0,
+        Err(_) => true,
+    };
+
+    set_windows_autostart(enabled)?;
+    Ok(enabled)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn launch_at_startup_enabled() -> Result<bool, String> {
+    Ok(false)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -80,6 +167,14 @@ pub fn run() {
             }
         }))
         .setup(|app| {
+            let launch_at_startup = match launch_at_startup_enabled() {
+                Ok(value) => value,
+                Err(err) => {
+                    eprintln!("[TickNest] Startup setup failed: {err}");
+                    false
+                }
+            };
+
             let main_window = app.get_webview_window("main").expect("main window not found");
 
             // Initial positioning
@@ -99,8 +194,17 @@ pub fn run() {
 
             // Tray icon setup (use explicit asset for reliable updates)
             let icon = tauri::include_image!("icons/32x32.png");
+            let startup_item = CheckMenuItem::with_id(
+                app,
+                STARTUP_MENU_ID,
+                "Launch at startup",
+                true,
+                launch_at_startup,
+                None::<&str>,
+            )?;
+            let startup_item_for_events = startup_item.clone();
             let exit_item = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&exit_item])?;
+            let tray_menu = Menu::with_items(app, &[&startup_item, &exit_item])?;
             let _tray = TrayIconBuilder::new()
                 .icon(icon)
                 .menu(&tray_menu)
@@ -118,8 +222,18 @@ pub fn run() {
                         }
                     }
                 })
-                .on_menu_event(|app, event| {
-                    if event.id().as_ref() == "exit" {
+                .on_menu_event(move |app, event| {
+                    let event_id = event.id().as_ref();
+                    if event_id == STARTUP_MENU_ID {
+                        let currently_enabled = launch_at_startup_enabled().unwrap_or(false);
+                        let next_value = !currently_enabled;
+
+                        if let Err(err) = set_windows_autostart(next_value) {
+                            eprintln!("[TickNest] Failed to update startup setting: {err}");
+                        }
+
+                        let _ = startup_item_for_events.set_checked(next_value);
+                    } else if event_id == "exit" {
                         app.exit(0);
                     }
                 })

@@ -12,7 +12,8 @@
       {
         "title": "TickNest",
         "width": 360,
-        "height": 540,
+        "height": 557,
+        "additionalBrowserArgs": "--disable-features=TouchpadOverscrollHistoryNavigation,OverscrollHistoryNavigation",
         "decorations": false,
         "resizable": false,
         "alwaysOnTop": true,

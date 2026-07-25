@@ -91,8 +91,8 @@ fn place_window_bottom_right(
     let work_area = monitor.work_area();
     let window_size = window.outer_size()?;
 
-    let margin_x: i32 = 24;
-    let margin_y: i32 = 18;
+    let margin_x: i32 = 12;
+    let margin_y: i32 = 12;
 
     let min_x = work_area.position.x;
     let min_y = work_area.position.y;

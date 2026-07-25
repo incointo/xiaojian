@@ -7,8 +7,11 @@
   font-display: swap; /* Keeps text visible while loading */
 }
 
-body{
-    height:100vh;
+html,
+body {
+    height: 100vh;
+    overflow: hidden;
+    overscroll-behavior: none;
 }
 
 
@@ -78,6 +81,7 @@ body{
     flex:1;
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior: contain;
     overflow-anchor: none;
     padding: 10px 10px;
     margin: 0px -10px -8px -10px;

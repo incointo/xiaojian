@@ -1,10 +1,56 @@
-use tauri::{Manager, WindowEvent};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+use tauri::{Manager, WindowEvent};
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Task {
+    title: String,
+}
+
+fn tasks_file_path() -> Result<PathBuf, String> {
+    let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {e}"))?;
+    let exe_dir = exe_path
+        .parent()
+        .ok_or_else(|| "Failed to get executable directory".to_string())?;
+    Ok(exe_dir.join("tasks.json"))
+}
+
+fn write_tasks_file(path: &PathBuf, tasks: &[Task]) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(tasks)
+        .map_err(|e| format!("Failed to serialize tasks: {e}"))?;
+    fs::write(path, json).map_err(|e| format!("Failed to write tasks file: {e}"))
+}
+
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+fn load_tasks() -> Result<Vec<Task>, String> {
+    let path = tasks_file_path()?;
+
+    if !path.exists() {
+        let tasks: Vec<Task> = vec![];
+        write_tasks_file(&path, &tasks)?;
+        return Ok(tasks);
+    }
+
+    let content = fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read tasks file at {}: {e}", path.display()))?;
+
+    if content.trim().is_empty() {
+        return Ok(vec![]);
+    }
+
+    let tasks: Vec<Task> = serde_json::from_str(&content)
+        .map_err(|e| format!("Invalid tasks.json format at {}: {e}", path.display()))?;
+
+    Ok(tasks)
+}
+
+#[tauri::command]
+fn save_tasks(tasks: Vec<Task>) -> Result<(), String> {
+    let path = tasks_file_path()?;
+    write_tasks_file(&path, &tasks)
 }
 
 #[tauri::command]
@@ -27,8 +73,6 @@ pub fn run() {
                 let x = monitor_size.width as f64 - window_size.width as f64 - 24.0;
                 let y = monitor_size.height as f64 - window_size.height as f64 - taskbar_height - 18.0;
                 main_window.set_position(tauri::LogicalPosition::new(x, y))?;
-                main_window.show()?;
-                main_window.set_focus()?;
             }
 
             // Tray icon setup
@@ -46,10 +90,14 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Trigger animation on blur, then hide
+            // Hide on blur after startup grace period (avoid launch focus jitter)
             let window_clone = main_window.clone();
+            let startup_instant = Instant::now();
             main_window.on_window_event(move |event| {
                 if let WindowEvent::Focused(false) = event {
+                    if startup_instant.elapsed() < Duration::from_millis(900) {
+                        return;
+                    }
                     let _ = window_clone.hide();
                 }
             });
@@ -57,7 +105,7 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, hide_window])
+        .invoke_handler(tauri::generate_handler![hide_window, load_tasks, save_tasks])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

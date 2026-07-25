@@ -17,40 +17,7 @@
                 </div>
             </div>
 
-            <div class="tasks">
-                <div class="task-item">
-                    <div class="task-details">
-                        <div class="tick-box">
-                        </div>
-                        <span class="task-title">Buy Groceries</span>
-                    </div>
-                    <div class="grabber">
-                        <img src="/icons/grabber.svg" alt="Grabber">
-                    </div>
-                </div>
-                <div class="task-item">
-                    <div class="task-details">
-                        <div class="tick-box">
-                        </div>
-                        <span class="task-title">Standup Meeting</span>
-                    </div>
-                    <div class="grabber">
-                        <img src="/icons/grabber.svg" alt="Grabber">
-                    </div>
-                </div>
-                <div class="task-item">
-                    <div class="task-details">
-                        <div class="tick-box">
-                        </div>
-                        <span class="task-title">Phone Recharge</span>
-                    </div>
-                    <div class="grabber">
-                        <img src="/icons/grabber.svg" alt="Grabber">
-                    </div>
-                </div>
-
-
-            </div>
+            <div class="tasks"></div>
             <div class="new-task-container">
                     <img src="/icons/plus.svg" alt="Add Task">
                     <input type="text" class="new-task-input" placeholder="What needs doing today?"/>
@@ -58,6 +25,149 @@
             </div>
         </div>
     </div>
+    <script>
+        const tasksContainer = document.querySelector('.tasks');
+        const invoke = window.__TAURI__.core.invoke;
+        let activeDrag = null;
+
+        function renderTasks(tasks) {
+            tasksContainer.innerHTML = '';
+
+            tasks.forEach((task) => {
+                const taskItem = document.createElement('div');
+                taskItem.className = 'task-item';
+                taskItem.dataset.title = task.title;
+
+                taskItem.innerHTML = `
+                    <div class="task-details">
+                        <div class="tick-box"></div>
+                        <span class="task-title"></span>
+                    </div>
+                    <div class="grabber">
+                        <img src="/icons/grabber.svg" alt="Grabber">
+                    </div>
+                `;
+
+                taskItem.querySelector('.task-title').textContent = task.title;
+                tasksContainer.appendChild(taskItem);
+            });
+        }
+
+        function getTasksFromDom() {
+            const taskItems = [...tasksContainer.querySelectorAll('.task-item')];
+            return taskItems.map((item) => ({
+                title: item.querySelector('.task-title')?.textContent?.trim() ?? '',
+            }));
+        }
+
+        async function persistTasks() {
+            try {
+                await invoke('save_tasks', { tasks: getTasksFromDom() });
+            } catch (error) {
+                console.error('Failed to save tasks:', error);
+            }
+        }
+
+        async function initializeTasks() {
+            try {
+                const tasks = await invoke('load_tasks');
+                renderTasks(tasks);
+            } catch (error) {
+                console.error('Failed to load tasks:', error);
+            }
+        }
+
+        tasksContainer.addEventListener('pointerdown', (e) => {
+            const grabber = e.target.closest('.grabber');
+            if (!grabber) return;
+            const taskItem = grabber.closest('.task-item');
+            if (!taskItem) return;
+
+            e.preventDefault();
+
+            const rect = taskItem.getBoundingClientRect();
+            const offsetX = e.clientX - rect.left;
+            const offsetY = e.clientY - rect.top;
+
+            const clone = taskItem.cloneNode(true);
+            clone.classList.add('drag-clone');
+            clone.style.width = `${rect.width}px`;
+            clone.style.height = `${rect.height}px`;
+            clone.style.left = `${e.clientX - offsetX}px`;
+            clone.style.top = `${e.clientY - offsetY}px`;
+            document.body.appendChild(clone);
+
+            const placeholder = document.createElement('div');
+            placeholder.classList.add('task-placeholder');
+            placeholder.style.height = `${rect.height}px`;
+
+            taskItem.parentNode.insertBefore(placeholder, taskItem);
+            taskItem.style.display = 'none';
+
+            activeDrag = {
+                item: taskItem,
+                clone,
+                placeholder,
+                grabber,
+                offsetX,
+                offsetY,
+                pointerId: e.pointerId,
+            };
+
+            if (grabber.setPointerCapture) {
+                grabber.setPointerCapture(e.pointerId);
+            }
+        });
+
+        tasksContainer.addEventListener('pointermove', (e) => {
+            if (!activeDrag) return;
+
+            activeDrag.clone.style.left = `${e.clientX - activeDrag.offsetX}px`;
+            activeDrag.clone.style.top = `${e.clientY - activeDrag.offsetY}px`;
+
+            const y = e.clientY;
+            const siblings = [...tasksContainer.querySelectorAll('.task-item')].filter(
+                (item) => item.style.display !== 'none'
+            );
+
+            const nextSibling = siblings.find((sibling) => {
+                const box = sibling.getBoundingClientRect();
+                const middle = box.top + box.height / 2;
+                return y < middle;
+            });
+
+            if (nextSibling) {
+                tasksContainer.insertBefore(activeDrag.placeholder, nextSibling);
+            } else {
+                tasksContainer.appendChild(activeDrag.placeholder);
+            }
+        });
+
+        const stopDrag = async () => {
+            if (!activeDrag) return;
+
+            if (activeDrag.grabber.releasePointerCapture && activeDrag.pointerId !== undefined) {
+                try {
+                    activeDrag.grabber.releasePointerCapture(activeDrag.pointerId);
+                } catch (_) {}
+            }
+
+            tasksContainer.insertBefore(activeDrag.item, activeDrag.placeholder);
+            activeDrag.item.style.display = '';
+
+            activeDrag.placeholder.remove();
+            activeDrag.clone.remove();
+
+            activeDrag = null;
+
+            await persistTasks();
+        };
+
+        tasksContainer.addEventListener('pointerup', stopDrag);
+        tasksContainer.addEventListener('pointercancel', stopDrag);
+
+        initializeTasks();
+    </script>
 </body>
 
 </html>

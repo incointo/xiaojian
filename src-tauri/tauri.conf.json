@@ -11,8 +11,8 @@
     "windows": [
       {
         "title": "Ticknest",
-        "width": 400,
-        "height": 589,
+        "width": 360,
+        "height": 540,
         "decorations": false,
         "resizable": false,
         "alwaysOnTop": true,

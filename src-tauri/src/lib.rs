@@ -22,12 +22,20 @@ struct Task {
     title: String,
 }
 
-fn tasks_file_path() -> Result<PathBuf, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {e}"))?;
-    let exe_dir = exe_path
-        .parent()
-        .ok_or_else(|| "Failed to get executable directory".to_string())?;
-    Ok(exe_dir.join("tasks.json"))
+fn tasks_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data directory: {e}"))?;
+
+    fs::create_dir_all(&app_data_dir).map_err(|e| {
+        format!(
+            "Failed to create app data directory at {}: {e}",
+            app_data_dir.display()
+        )
+    })?;
+
+    Ok(app_data_dir.join("tasks.json"))
 }
 
 fn write_tasks_file(path: &PathBuf, tasks: &[Task]) -> Result<(), String> {
@@ -37,8 +45,8 @@ fn write_tasks_file(path: &PathBuf, tasks: &[Task]) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn load_tasks() -> Result<Vec<Task>, String> {
-    let path = tasks_file_path()?;
+fn load_tasks(app: tauri::AppHandle) -> Result<Vec<Task>, String> {
+    let path = tasks_file_path(&app)?;
 
     if !path.exists() {
         let tasks: Vec<Task> = vec![];
@@ -60,8 +68,8 @@ fn load_tasks() -> Result<Vec<Task>, String> {
 }
 
 #[tauri::command]
-fn save_tasks(tasks: Vec<Task>) -> Result<(), String> {
-    let path = tasks_file_path()?;
+fn save_tasks(app: tauri::AppHandle, tasks: Vec<Task>) -> Result<(), String> {
+    let path = tasks_file_path(&app)?;
     write_tasks_file(&path, &tasks)
 }
 

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
@@ -41,7 +42,29 @@ fn tasks_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 fn write_tasks_file(path: &PathBuf, tasks: &[Task]) -> Result<(), String> {
     let json = serde_json::to_string_pretty(tasks)
         .map_err(|e| format!("Failed to serialize tasks: {e}"))?;
-    fs::write(path, json).map_err(|e| format!("Failed to write tasks file: {e}"))
+
+    let temp_path = path.with_extension("json.tmp");
+
+    let mut temp_file = fs::File::create(&temp_path)
+        .map_err(|e| format!("Failed to create temp tasks file at {}: {e}", temp_path.display()))?;
+    temp_file
+        .write_all(json.as_bytes())
+        .map_err(|e| format!("Failed to write temp tasks file at {}: {e}", temp_path.display()))?;
+    temp_file
+        .sync_all()
+        .map_err(|e| format!("Failed to flush temp tasks file at {}: {e}", temp_path.display()))?;
+
+    if path.exists() {
+        let _ = fs::remove_file(path);
+    }
+
+    fs::rename(&temp_path, path).map_err(|e| {
+        format!(
+            "Failed to replace tasks file from {} to {}: {e}",
+            temp_path.display(),
+            path.display()
+        )
+    })
 }
 
 #[tauri::command]

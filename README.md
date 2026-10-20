@@ -1,20 +1,39 @@
 # 小笺
 
-小笺是一个面向 Windows 10/11 的轻量桌面待办便笺，基于 Tauri 2、Rust 和原生 HTML/CSS/JavaScript。项目从 [TickNest](https://github.com/AakashVarma1995/TickNest) 派生，保留原项目的 MIT 许可和版权声明；具体许可见 [LICENSE](LICENSE)。
+小笺是一个面向 Windows 10/11 的轻量待办便笺，使用 Tauri 2、Rust、SQLite 和原生 HTML/CSS/JavaScript。界面保持为单个小窗口，不依赖前端框架；任务和便笺只保存在本机。
 
-当前分支用于实现每日待办、今日待办、本地便笺和托盘快捷操作。界面使用 Tauri 静态前端目录，不使用 React/Vue 或前端打包框架。
+项目从 [TickNest](https://github.com/AakashVarma1995/TickNest) 派生，保留上游 MIT 许可和版权信息，详见 [LICENSE](LICENSE)。
+
+## 功能
+
+- 记录今日任务和每日重复任务；任务可以完成、撤销、改名或删除。
+- 今日任务按 Windows 本地日期创建。未完成事项跨日后顺延；每日任务在新的一天自动恢复未完成。
+- 便笺为纯文本，输入后延迟保存，离开输入框时立即保存。退出时会等待保存；保存失败时窗口会保持打开。
+- 窗口始终置顶。点关闭按钮会收进系统托盘，应用继续运行；托盘左键打开窗口，右键菜单可以直接完成待办或退出。
+- 标题和便笺按纯文本显示。所有数据保存在本机 SQLite 数据库，不连接云服务。
+
+## 数据位置
+
+数据库文件位于当前 Windows 用户的应用数据目录：
+
+```text
+%APPDATA%\com.xiaojian.todo\xiaojian.sqlite3
+```
+
+数据库损坏或版本较新时，小笺会显示错误，不会自动删除或重置数据库文件。需要备份或迁移数据时，请先退出应用，再复制整个 `com.xiaojian.todo` 目录。
 
 ## 开发环境
 
+- Windows 10 或 Windows 11
 - Node.js 18 或更新版本
-- Rust stable
-- Windows 上的 Visual Studio C++ Build Tools 和 Windows SDK
-- WebView2 Runtime
+- Rust stable 工具链（MSVC）
+- Visual Studio C++ Build Tools 和 Windows SDK
+- Microsoft Edge WebView2 Runtime
 
-安装依赖并启动开发版：
+安装 JavaScript 工具并启动开发版：
 
 ```powershell
-npm install
+npm ci
 npm run tauri dev
 ```
 
@@ -24,4 +43,4 @@ npm run tauri dev
 npm run tauri build
 ```
 
-窗口和应用标识配置位于 `src-tauri/tauri.conf.json`。任务和便笺仅保存在本机应用数据目录；不会连接云服务。
+Tauri 窗口、应用标识和 Windows 安装包配置位于 `src-tauri/tauri.conf.json`；Rust 命令、SQLite 存储和托盘逻辑位于 `src-tauri/src/`。

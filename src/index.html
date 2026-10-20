@@ -1,251 +1,89 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-
-<body>
-    <div class="outer-container">
-        <div class="container">
-            <div class="title-bar">
-                <div class="app-title">
-                    <img src="/icons/ticknest-mark.svg" alt="TickNest" class="app-title-icon" />
-                    <span class="app-title-text">TickNest</span>
-                </div>
-            </div>
-
-            <div class="separator"></div>
-
-            <div class="tasks"></div>
-            <div class="empty-state" aria-live="polite">
-                <img src="/icons/empty-state.svg" alt="Empty checklist illustration" />
-                <h3>So empty...</h3>
-                <p>Add your first task below and start ticking things off ✨</p>
-            </div>
-            <div class="new-tasks-section">
-                <div class="separator"></div>
-
-                <div class="new-task-container">
-                    <img src="/icons/plus.svg" alt="Add Task">
-                    <input type="text" class="new-task-input" placeholder="What needs doing today?" />
-
-                </div>
-            </div>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f4ed" />
+    <title>小笺</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="window-frame" id="app">
+      <header class="topbar">
+        <div class="brand" data-tauri-drag-region>
+          <span class="brand-mark" aria-hidden="true">✳</span>
+          <span class="brand-name">小笺</span>
         </div>
+        <div class="topbar-actions">
+          <time class="date-label" id="date-label"></time>
+          <button class="window-button" id="hide-window" type="button" aria-label="收进系统托盘" title="收进系统托盘">×</button>
+        </div>
+      </header>
+
+      <div class="app-error" id="app-error" role="alert" hidden></div>
+
+      <main class="main-content">
+        <div class="task-sections" id="task-sections" aria-live="polite">
+          <section class="task-section" aria-labelledby="today-heading">
+            <div class="section-heading">
+              <div class="section-title-wrap">
+                <span class="section-dot today-dot" aria-hidden="true"></span>
+                <h1 id="today-heading">今日</h1>
+              </div>
+              <span class="task-count" id="today-count">0</span>
+            </div>
+            <ul class="task-list" id="today-list"></ul>
+            <details class="completed-list" id="today-completed" hidden>
+              <summary><span>已完成</span><span class="completed-count" id="today-completed-count">0</span></summary>
+              <ul class="task-list completed-items" id="today-completed-list"></ul>
+            </details>
+          </section>
+
+          <section class="task-section daily-section" aria-labelledby="daily-heading">
+            <div class="section-heading">
+              <div class="section-title-wrap">
+                <span class="section-dot daily-dot" aria-hidden="true"></span>
+                <h2 id="daily-heading">每日</h2>
+              </div>
+              <span class="task-count" id="daily-count">0</span>
+            </div>
+            <ul class="task-list" id="daily-list"></ul>
+            <details class="completed-list" id="daily-completed" hidden>
+              <summary><span>今天已完成</span><span class="completed-count" id="daily-completed-count">0</span></summary>
+              <ul class="task-list completed-items" id="daily-completed-list"></ul>
+            </details>
+          </section>
+        </div>
+
+        <form class="new-task-form" id="task-form">
+          <input
+            id="task-input"
+            name="title"
+            type="text"
+            placeholder="记下一件小事…"
+            aria-label="新任务标题"
+            autocomplete="off"
+          />
+          <select id="task-kind" name="kind" aria-label="任务类型">
+            <option value="today">今日</option>
+            <option value="daily">每日</option>
+          </select>
+          <button class="add-button" type="submit" aria-label="添加任务" title="添加任务">+</button>
+        </form>
+        <div class="input-hint" id="input-hint" aria-live="polite"></div>
+
+        <section class="note-section" aria-labelledby="note-heading">
+          <div class="note-heading">
+            <div>
+              <h2 id="note-heading">随手记</h2>
+              <p>只保存在这台电脑</p>
+            </div>
+            <span class="save-status" id="save-status" role="status">已保存</span>
+          </div>
+          <textarea id="note-input" aria-label="随手记内容" placeholder="写点备忘…" spellcheck="false" disabled></textarea>
+        </section>
+      </main>
     </div>
-    <script>
-        const tasksContainer = document.querySelector('.tasks');
-        const emptyState = document.querySelector('.empty-state');
-        const newTaskInput = document.querySelector('.new-task-input');
-        const invoke = window.__TAURI__.core.invoke;
-        let activeDrag = null;
-
-        function updateEmptyState() {
-            const hasTasks = tasksContainer.querySelectorAll('.task-item').length > 0;
-            if (emptyState) {
-                emptyState.classList.toggle('show', !hasTasks);
-            }
-
-            tasksContainer.style.display = hasTasks ? 'flex' : 'none';
-        }
-
-        function createTaskItem(title) {
-            const taskItem = document.createElement('div');
-            taskItem.className = 'task-item';
-            taskItem.dataset.title = title;
-
-            taskItem.innerHTML = `
-                <div class="task-details">
-                    <div class="tick-box"></div>
-                    <span class="task-title"></span>
-                </div>
-                <div class="grabber">
-                    <img src="/icons/grabber.svg" alt="Grabber">
-                </div>
-            `;
-
-            taskItem.querySelector('.task-title').textContent = title;
-            return taskItem;
-        }
-
-        function renderTasks(tasks) {
-            tasksContainer.innerHTML = '';
-
-            tasks.forEach((task) => {
-                const taskItem = createTaskItem(task.title);
-                tasksContainer.appendChild(taskItem);
-            });
-
-            updateEmptyState();
-        }
-
-        function getTasksFromDom() {
-            const taskItems = [...tasksContainer.querySelectorAll('.task-item')];
-            return taskItems.map((item) => ({
-                title: item.querySelector('.task-title')?.textContent?.trim() ?? '',
-            }));
-        }
-
-        async function persistTasks() {
-            try {
-                await invoke('save_tasks', { tasks: getTasksFromDom() });
-            } catch (error) {
-                console.error('Failed to save tasks:', error);
-            }
-        }
-
-        async function initializeTasks() {
-            try {
-                const tasks = await invoke('load_tasks');
-                renderTasks(tasks);
-            } catch (error) {
-                console.error('Failed to load tasks:', error);
-                updateEmptyState();
-            }
-        }
-
-        function wait(ms) {
-            return new Promise((resolve) => setTimeout(resolve, ms));
-        }
-
-        async function completeTask(taskItem) {
-            if (!taskItem || taskItem.classList.contains('is-completing')) return;
-
-            taskItem.classList.add('is-completing');
-            taskItem.classList.add('completed');
-
-            await wait(420);
-
-            taskItem.classList.add('removing');
-            await wait(580);
-
-            taskItem.remove();
-            updateEmptyState();
-            await persistTasks();
-        }
-
-        async function addTaskFromInput() {
-            const title = newTaskInput.value.trim();
-            if (!title) return;
-
-            const taskItem = createTaskItem(title);
-            tasksContainer.insertBefore(taskItem, tasksContainer.firstChild);
-            updateEmptyState();
-
-            newTaskInput.value = '';
-            await persistTasks();
-        }
-
-        tasksContainer.addEventListener('pointerdown', (e) => {
-            const grabber = e.target.closest('.grabber');
-            if (!grabber) return;
-            const taskItem = grabber.closest('.task-item');
-            if (!taskItem) return;
-
-            e.preventDefault();
-
-            const rect = taskItem.getBoundingClientRect();
-            const offsetX = e.clientX - rect.left;
-            const offsetY = e.clientY - rect.top;
-
-            const clone = taskItem.cloneNode(true);
-            clone.classList.add('drag-clone');
-            clone.style.width = `${rect.width}px`;
-            clone.style.height = `${rect.height}px`;
-            clone.style.left = `${e.clientX - offsetX}px`;
-            clone.style.top = `${e.clientY - offsetY}px`;
-            document.body.appendChild(clone);
-
-            const placeholder = document.createElement('div');
-            placeholder.classList.add('task-placeholder');
-            placeholder.style.height = `${rect.height}px`;
-
-            taskItem.parentNode.insertBefore(placeholder, taskItem);
-            taskItem.style.display = 'none';
-
-            activeDrag = {
-                item: taskItem,
-                clone,
-                placeholder,
-                grabber,
-                offsetX,
-                offsetY,
-                pointerId: e.pointerId,
-            };
-
-            if (grabber.setPointerCapture) {
-                grabber.setPointerCapture(e.pointerId);
-            }
-        });
-
-        tasksContainer.addEventListener('pointermove', (e) => {
-            if (!activeDrag) return;
-
-            activeDrag.clone.style.left = `${e.clientX - activeDrag.offsetX}px`;
-            activeDrag.clone.style.top = `${e.clientY - activeDrag.offsetY}px`;
-
-            const y = e.clientY;
-            const siblings = [...tasksContainer.querySelectorAll('.task-item')].filter(
-                (item) => item.style.display !== 'none'
-            );
-
-            const nextSibling = siblings.find((sibling) => {
-                const box = sibling.getBoundingClientRect();
-                const middle = box.top + box.height / 2;
-                return y < middle;
-            });
-
-            if (nextSibling) {
-                tasksContainer.insertBefore(activeDrag.placeholder, nextSibling);
-            } else {
-                tasksContainer.appendChild(activeDrag.placeholder);
-            }
-        });
-
-        tasksContainer.addEventListener('click', async (e) => {
-            const tickBox = e.target.closest('.tick-box');
-            if (!tickBox) return;
-            if (activeDrag) return;
-
-            const taskItem = tickBox.closest('.task-item');
-            await completeTask(taskItem);
-        });
-
-        const stopDrag = async () => {
-            if (!activeDrag) return;
-
-            if (activeDrag.grabber.releasePointerCapture && activeDrag.pointerId !== undefined) {
-                try {
-                    activeDrag.grabber.releasePointerCapture(activeDrag.pointerId);
-                } catch (_) {}
-            }
-
-            tasksContainer.insertBefore(activeDrag.item, activeDrag.placeholder);
-            activeDrag.item.style.display = '';
-
-            activeDrag.placeholder.remove();
-            activeDrag.clone.remove();
-
-            activeDrag = null;
-
-            await persistTasks();
-        };
-
-        tasksContainer.addEventListener('pointerup', stopDrag);
-        tasksContainer.addEventListener('pointercancel', stopDrag);
-
-        newTaskInput.addEventListener('keydown', async (e) => {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            await addTaskFromInput();
-        });
-
-        initializeTasks();
-    </script>
-</body>
-
+  </body>
 </html>

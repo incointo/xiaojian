@@ -18,6 +18,8 @@ const appError = document.querySelector('#app-error');
 const dateLabel = document.querySelector('#date-label');
 const noteInput = document.querySelector('#note-input');
 const saveStatus = document.querySelector('#save-status');
+const deleteDialog = document.querySelector('#delete-dialog');
+const deletingTaskIds = new Set();
 
 const sections = {
   today: {
@@ -273,6 +275,43 @@ function startRename(row, task) {
   });
 }
 
+function confirmTaskDeletion(task) {
+  if (deleteDialog.open) return Promise.resolve(false);
+  document.querySelector('#delete-description').textContent = task.kind === 'daily'
+    ? '删除后，这条任务将不再每日重复。'
+    : '删除后无法恢复。';
+  document.querySelector('#delete-task-title').textContent = task.title;
+  deleteDialog.returnValue = 'cancel';
+  return new Promise((resolve) => {
+    deleteDialog.addEventListener('close', () => {
+      resolve(deleteDialog.returnValue === 'delete');
+    }, { once: true });
+    deleteDialog.showModal();
+  });
+}
+
+deleteDialog.addEventListener('click', (event) => {
+  if (event.target !== deleteDialog) return;
+  const bounds = deleteDialog.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right ||
+      event.clientY < bounds.top || event.clientY > bounds.bottom) {
+    deleteDialog.close('cancel');
+  }
+});
+
+deleteDialog.addEventListener('keydown', (event) => {
+  if (event.key !== 'Tab') return;
+  const cancel = document.querySelector('#delete-cancel');
+  const accept = document.querySelector('#delete-accept');
+  if (event.shiftKey && document.activeElement === cancel) {
+    event.preventDefault();
+    accept.focus();
+  } else if (!event.shiftKey && document.activeElement === accept) {
+    event.preventDefault();
+    cancel.focus();
+  }
+});
+
 async function handleTaskAction(event) {
   const button = event.target.closest('button[data-action]');
   if (!button) return;
@@ -287,13 +326,20 @@ async function handleTaskAction(event) {
     return;
   }
   if (button.dataset.action === 'delete') {
-    if (!window.confirm('删除这条任务？')) return;
+    if (deletingTaskIds.has(id)) return;
     try {
+      if (!await confirmTaskDeletion(task)) return;
+      deletingTaskIds.add(id);
+      button.disabled = true;
       await invoke('delete_task', { id });
       clearError('tasks');
       await reloadTasks();
+      taskInput.focus();
     } catch (error) {
       showError(describeError(error), 'tasks');
+    } finally {
+      deletingTaskIds.delete(id);
+      button.disabled = false;
     }
     return;
   }

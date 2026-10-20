@@ -86,5 +86,16 @@
         </section>
       </main>
     </div>
+    <dialog class="delete-dialog" id="delete-dialog" aria-labelledby="delete-dialog-heading" aria-describedby="delete-description delete-task-title">
+      <form method="dialog">
+        <h2 id="delete-dialog-heading">删除这条任务？</h2>
+        <p id="delete-description">删除后无法恢复。</p>
+        <p class="delete-task-title" id="delete-task-title"></p>
+        <div class="delete-dialog-actions">
+          <button id="delete-cancel" type="submit" value="cancel" autofocus>取消</button>
+          <button class="delete-accept" id="delete-accept" type="submit" value="delete">删除</button>
+        </div>
+      </form>
+    </dialog>
   </body>
 </html>

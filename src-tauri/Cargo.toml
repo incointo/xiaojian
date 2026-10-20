@@ -1,6 +1,6 @@
 [package]
 name = "xiaojian"
-version = "0.1.4"
+version = "0.1.5"
 description = "小笺轻量待办便笺"
 authors = ["Aakash"]
 edition = "2021"

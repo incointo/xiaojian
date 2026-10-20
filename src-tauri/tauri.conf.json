@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "TickNest",
+  "productName": "小笺",
   "version": "0.1.2",
-  "identifier": "com.aakash.ticknest",
+  "identifier": "com.xiaojian.todo",
   "build": {
     "frontendDist": "../src"
   },
@@ -10,16 +10,18 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "TickNest",
+        "title": "小笺",
         "width": 360,
-        "height": 557,
+        "height": 560,
         "additionalBrowserArgs": "--disable-features=TouchpadOverscrollHistoryNavigation,OverscrollHistoryNavigation",
         "decorations": false,
-        "resizable": false,
+        "minWidth": 320,
+        "minHeight": 420,
+        "resizable": true,
         "alwaysOnTop": true,
         "transparent": true,
         "skipTaskbar": true,
-        "visible": false
+        "visible": true
       }
     ],
     "security": {

@@ -1,159 +1,27 @@
-# TickNest
+# 小笺
 
-<p align="center">
-	<img src="src/icons/ticknest-mark.svg" alt="TickNest icon" width="96" />
-</p>
+小笺是一个面向 Windows 10/11 的轻量桌面待办便笺，基于 Tauri 2、Rust 和原生 HTML/CSS/JavaScript。项目从 [TickNest](https://github.com/AakashVarma1995/TickNest) 派生，保留原项目的 MIT 许可和版权声明；具体许可见 [LICENSE](LICENSE)。
 
-<p align="center">
-	<b>A tray-first desktop to-do app that stays out of your way.</b><br />
-	Built with Tauri 2, Rust, and Vanilla HTML/CSS/JS.
-</p>
+当前分支用于实现每日待办、今日待办、本地便笺和托盘快捷操作。界面使用 Tauri 静态前端目录，不使用 React/Vue 或前端打包框架。
 
-<p align="center">
-	<img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-blue" />
-	<img alt="Rust" src="https://img.shields.io/badge/Rust-stable-orange" />
-	<img alt="Platform" src="https://img.shields.io/badge/Platform-Windows-lightgrey" />
-	<img alt="UI" src="https://img.shields.io/badge/UI-Compact-success" />
-</p>
+## 开发环境
 
-TickNest is a lightweight productivity companion for quick task capture and completion. It opens fast, lives in the tray, and keeps your list persisted locally with zero account setup.
+- Node.js 18 或更新版本
+- Rust stable
+- Windows 上的 Visual Studio C++ Build Tools 和 Windows SDK
+- WebView2 Runtime
 
-## Why TickNest
+安装依赖并启动开发版：
 
-- Minimal, distraction-free floating window
-- Fast task flow: add, reorder, complete, done
-- Local-first persistence with a simple tasks.json file
-- No cloud dependency, no login, no noise
-
-## <img src="src/icons/ticknest-mark.svg" alt="TickNest" width="18" /> Features
-
-- Drag-and-drop reordering with a dedicated handle
-- Completion animation before task removal
-- Empty-state interface when list is blank
-- Local JSON persistence via Rust commands
-- Single-instance app behavior
-- Tray integration:
-	- Left click shows and focuses the window
-	- Right click opens tray menu with Exit
-- Startup placement at bottom-right of the primary monitor
-
-## Preview
-
-TickNest in Action!
-
-![TickNest main view](docs/images/vid1.gif)
-![TickNest drag and reorder](docs/images/vid2.gif)
-
-## Tech Stack
-
-- Tauri 2
-- Rust
-- Vanilla HTML, CSS, JavaScript
-
-## Project Structure
-
-- src: frontend assets and UI
-- src-tauri: Rust backend, tray/window lifecycle, Tauri config
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- Rust (stable)
-- Tauri OS prerequisites: https://tauri.app/start/prerequisites/
-
-### Install
-
-```bash
+```powershell
 npm install
-```
-
-### Development
-
-```bash
 npm run tauri dev
 ```
 
-### Build
+构建 Windows 安装包：
 
-```bash
+```powershell
 npm run tauri build
 ```
 
-## Releases
-
-This repository includes a GitHub Actions workflow at .github/workflows/release.yml.
-
-How publishing works:
-
-- Push a tag that starts with v (example: v0.1.0)
-- GitHub Actions builds the Windows release artifact
-- A GitHub draft Release is created automatically with attached build files
-
-Release steps:
-
-```bash
-npm run version:bump -- 0.1.1
-npm run version:check
-git add .
-git commit -m "Bump version to 0.1.1"
-npm run release:tag -- 0.1.1 --push
-```
-
-Then:
-
-- Open GitHub -> Releases -> Drafts
-- Open the generated draft
-- Review title, notes, and attached files
-- Click Publish release when ready
-
-## App Behavior
-
-### Single Instance
-
-If TickNest is already running, launching it again will focus and reveal the existing window instead of creating a second instance.
-
-### Tray Menu
-
-- Left-click tray icon: reveal and focus app
-- Right-click tray icon: open menu
-- Exit menu item: quit app cleanly
-
-### Task Persistence
-
-Tasks are saved to tasks.json next to the executable.
-
-- Missing file is auto-created
-- Reads and writes happen through Tauri commands in Rust
-
-## Configuration
-
-Main desktop configuration lives in src-tauri/tauri.conf.json.
-
-Key settings include:
-
-- Product name and app identifier
-- Frameless always-on-top compact window
-- App icon and bundle target settings
-
-## Roadmap
-
-- Add keyboard shortcuts for add and complete actions
-- Add optional startup-on-login toggle
-- Add task categories or quick tags
-- Add import/export for tasks
-- Add optional themes
-
-## Contributing
-
-Contributions are welcome.
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes with clear messages
-4. Open a pull request with screenshots for UI changes
-
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
+窗口和应用标识配置位于 `src-tauri/tauri.conf.json`。任务和便笺仅保存在本机应用数据目录；不会连接云服务。

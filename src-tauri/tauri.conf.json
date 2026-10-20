@@ -25,22 +25,19 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "connect-src": "ipc: http://ipc.localhost",
+        "font-src": "'self' asset: http://asset.localhost",
+        "img-src": "'self' asset: http://asset.localhost data:",
+        "script-src": "'self'",
+        "style-src": "'self'"
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "windows": {
-      "nsis": {
-        "sidebarImage": "icons/installer-sidebar.bmp",
-        "headerImage": "icons/installer-header.bmp"
-      },
-      "wix": {
-        "dialogImagePath": "icons/installer-dialog.bmp",
-        "bannerPath": "icons/installer-banner.bmp"
-      }
-    },
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

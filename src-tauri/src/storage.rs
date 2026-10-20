@@ -19,22 +19,17 @@ pub enum StoreError {
 impl fmt::Display for StoreError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Sql(error) => write!(formatter, "SQLite error: {error}"),
+            Self::Sql(error) => write!(formatter, "本地数据库错误：{error}"),
             Self::InvalidTask(TaskValidationError::Empty) => {
-                formatter.write_str("task title cannot be empty")
+                formatter.write_str("任务标题不能为空。")
             }
             Self::InvalidTask(TaskValidationError::TooLong) => {
-                formatter.write_str("task title cannot exceed 200 characters")
+                formatter.write_str("任务标题不能超过 200 个字符。")
             }
-            Self::NotFound => formatter.write_str("task not found"),
-            Self::CorruptDatabase => {
-                formatter.write_str("database is corrupt or has an invalid schema")
-            }
+            Self::NotFound => formatter.write_str("任务不存在，可能已被删除。"),
+            Self::CorruptDatabase => formatter.write_str("本地数据库损坏或结构无效。"),
             Self::UnsupportedSchema(version) => {
-                write!(
-                    formatter,
-                    "database schema version {version} is not supported"
-                )
+                write!(formatter, "本地数据库版本 {version} 暂不受支持。")
             }
         }
     }

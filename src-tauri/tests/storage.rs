@@ -1,8 +1,8 @@
 use chrono::NaiveDate;
 use std::fs;
 use tempfile::tempdir;
-use ticknest_lib::storage::{Store, StoreError};
-use ticknest_lib::tasks::TaskKind;
+use xiaojian_lib::storage::{Store, StoreError};
+use xiaojian_lib::tasks::TaskKind;
 
 #[test]
 fn store_creates_schema_and_round_trips_tasks() {

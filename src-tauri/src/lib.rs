@@ -1,336 +1,362 @@
 pub mod storage;
 pub mod tasks;
+pub mod tray;
+pub mod tray_helpers;
 
-use serde::{Deserialize, Serialize};
+use chrono::{Local, NaiveDate};
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
-use tauri::menu::{CheckMenuItem, Menu, MenuItem};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{Manager, WindowEvent};
-#[cfg(target_os = "windows")]
-use winreg::enums::HKEY_CURRENT_USER;
-#[cfg(target_os = "windows")]
-use winreg::RegKey;
+use std::sync::{Mutex, MutexGuard};
+use std::thread;
+use std::time::Duration;
+use storage::{Store, StoreError};
+use tasks::{is_complete_today, Task, TaskKind};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent};
 
-const STARTUP_MENU_ID: &str = "launch-at-startup";
-const STARTUP_REG_VALUE_NAME: &str = "TickNest";
-#[cfg(target_os = "windows")]
-const APP_PREFS_REG_PATH: &str = "Software\\TickNest";
-#[cfg(target_os = "windows")]
-const APP_PREF_STARTUP_VALUE_NAME: &str = "LaunchAtStartup";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Task {
-    title: String,
+pub struct AppState {
+    store: Mutex<Option<Store>>,
+    startup_error: Option<String>,
 }
 
-fn tasks_file_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to resolve app data directory: {e}"))?;
-
-    fs::create_dir_all(&app_data_dir).map_err(|e| {
-        format!(
-            "Failed to create app data directory at {}: {e}",
-            app_data_dir.display()
-        )
-    })?;
-
-    Ok(app_data_dir.join("tasks.json"))
-}
-
-fn write_tasks_file(path: &PathBuf, tasks: &[Task]) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(tasks)
-        .map_err(|e| format!("Failed to serialize tasks: {e}"))?;
-
-    let temp_path = path.with_extension("json.tmp");
-
-    let mut temp_file = fs::File::create(&temp_path).map_err(|e| {
-        format!(
-            "Failed to create temp tasks file at {}: {e}",
-            temp_path.display()
-        )
-    })?;
-    temp_file.write_all(json.as_bytes()).map_err(|e| {
-        format!(
-            "Failed to write temp tasks file at {}: {e}",
-            temp_path.display()
-        )
-    })?;
-    temp_file.sync_all().map_err(|e| {
-        format!(
-            "Failed to flush temp tasks file at {}: {e}",
-            temp_path.display()
-        )
-    })?;
-
-    if path.exists() {
-        let _ = fs::remove_file(path);
+fn store_lock(state: &AppState) -> Result<MutexGuard<'_, Option<Store>>, String> {
+    let guard = state
+        .store
+        .lock()
+        .map_err(|_| "本地数据锁定失败，请重启小笺。".to_owned())?;
+    if guard.is_none() {
+        return Err(state
+            .startup_error
+            .clone()
+            .unwrap_or_else(|| "本地数据库当前不可用。".to_owned()));
     }
+    Ok(guard)
+}
 
-    fs::rename(&temp_path, path).map_err(|e| {
-        format!(
-            "Failed to replace tasks file from {} to {}: {e}",
-            temp_path.display(),
-            path.display()
-        )
-    })
+fn available_store_mut<'a>(
+    guard: &'a mut MutexGuard<'_, Option<Store>>,
+) -> Result<&'a mut Store, String> {
+    guard
+        .as_mut()
+        .ok_or_else(|| "本地数据库当前不可用。".to_owned())
+}
+
+fn available_store_ref<'a>(guard: &'a MutexGuard<'_, Option<Store>>) -> Result<&'a Store, String> {
+    guard
+        .as_ref()
+        .ok_or_else(|| "本地数据库当前不可用。".to_owned())
+}
+
+fn list_tasks_from_store(state: &AppState) -> Result<Vec<Task>, String> {
+    let today = Local::now().date_naive();
+    let mut guard = store_lock(state)?;
+    available_store_mut(&mut guard)?
+        .list_tasks(today)
+        .map_err(|error| error.to_string())
+}
+
+fn mutate_tasks<T>(
+    app: &AppHandle,
+    state: &AppState,
+    mutation: impl FnOnce(&mut Store, NaiveDate) -> Result<T, StoreError>,
+) -> Result<T, String> {
+    let today = Local::now().date_naive();
+    let (value, tasks) = {
+        let mut guard = store_lock(state)?;
+        let store = available_store_mut(&mut guard)?;
+        let value = mutation(store, today).map_err(|error| error.to_string())?;
+        let tasks = store.list_tasks(today);
+        (value, tasks)
+    };
+
+    match tasks {
+        Ok(tasks) => {
+            if let Err(error) = tray::refresh_menu(app, &tasks) {
+                eprintln!("Task was saved, but the tray menu could not refresh: {error}");
+            }
+        }
+        Err(error) => eprintln!("Task was saved, but the task list could not refresh: {error}"),
+    }
+    Ok(value)
 }
 
 #[tauri::command]
-fn load_tasks(app: tauri::AppHandle) -> Result<Vec<Task>, String> {
-    let path = tasks_file_path(&app)?;
-
-    if !path.exists() {
-        let tasks: Vec<Task> = vec![];
-        write_tasks_file(&path, &tasks)?;
-        return Ok(tasks);
+fn list_tasks(state: State<'_, AppState>, app: AppHandle) -> Result<Vec<Task>, String> {
+    let tasks = list_tasks_from_store(&state)?;
+    if let Err(error) = tray::refresh_menu(&app, &tasks) {
+        eprintln!("Task list loaded, but the tray menu could not refresh: {error}");
     }
-
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read tasks file at {}: {e}", path.display()))?;
-
-    if content.trim().is_empty() {
-        return Ok(vec![]);
-    }
-
-    let tasks: Vec<Task> = serde_json::from_str(&content)
-        .map_err(|e| format!("Invalid tasks.json format at {}: {e}", path.display()))?;
-
     Ok(tasks)
 }
 
 #[tauri::command]
-fn save_tasks(app: tauri::AppHandle, tasks: Vec<Task>) -> Result<(), String> {
-    let path = tasks_file_path(&app)?;
-    write_tasks_file(&path, &tasks)
+fn create_task(
+    title: String,
+    kind: TaskKind,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Task, String> {
+    mutate_tasks(&app, &state, |store, today| {
+        store.create_task(&title, kind, today)
+    })
 }
 
 #[tauri::command]
-async fn hide_window(window: tauri::Window) {
-    let _ = window.hide();
+fn set_task_completed(
+    id: i64,
+    completed: bool,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    mutate_tasks(&app, &state, |store, today| {
+        store.set_task_completed(id, completed, today)
+    })
 }
 
-fn env_flag_enabled(name: &str) -> bool {
-    match std::env::var(name) {
-        Ok(value) => matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "1" | "true" | "yes" | "on"
-        ),
-        Err(_) => false,
-    }
+#[tauri::command]
+fn rename_task(
+    id: i64,
+    title: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    mutate_tasks(&app, &state, |store, _today| store.rename_task(id, &title))
 }
 
-fn place_window_bottom_right(
-    app: &tauri::AppHandle,
-    window: &tauri::WebviewWindow,
-) -> Result<(), tauri::Error> {
+#[tauri::command]
+fn delete_task(id: i64, state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    mutate_tasks(&app, &state, |store, _today| store.delete_task(id))
+}
+
+#[tauri::command]
+fn load_note(state: State<'_, AppState>) -> Result<String, String> {
+    let guard = store_lock(&state)?;
+    available_store_ref(&guard)?
+        .load_note()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn save_note(note: String, state: State<'_, AppState>) -> Result<(), String> {
+    let mut guard = store_lock(&state)?;
+    available_store_mut(&mut guard)?
+        .save_note(&note)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn hide_window(window: WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn exit_after_save(app: AppHandle) {
+    app.exit(0);
+}
+
+fn app_data_database(app: &tauri::App) -> Result<(PathBuf, bool), String> {
+    let directory = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("无法取得小笺数据目录：{error}"))?;
+    let path = directory.join("xiaojian.sqlite3");
+    let first_launch = !path.exists();
+    fs::create_dir_all(&directory)
+        .map_err(|error| format!("无法创建小笺数据目录 {}：{error}", directory.display()))?;
+    Ok((path, first_launch))
+}
+
+fn initialize_store(app: &tauri::App) -> (Option<Store>, Option<String>, Vec<Task>, bool) {
+    let (path, first_launch) = match app_data_database(app) {
+        Ok(result) => result,
+        Err(error) => return (None, Some(error), Vec::new(), false),
+    };
+    let mut store = match Store::open(&path) {
+        Ok(store) => store,
+        Err(error) => {
+            return (
+                None,
+                Some(format!("无法打开本地数据库 {}：{error}", path.display())),
+                Vec::new(),
+                first_launch,
+            );
+        }
+    };
+    let tasks = match store.list_tasks(Local::now().date_naive()) {
+        Ok(tasks) => tasks,
+        Err(error) => {
+            return (
+                None,
+                Some(format!("无法读取本地数据库 {}：{error}", path.display())),
+                Vec::new(),
+                first_launch,
+            );
+        }
+    };
+    (Some(store), None, tasks, first_launch)
+}
+
+fn place_window_bottom_right(app: &AppHandle, window: &WebviewWindow) -> Result<(), tauri::Error> {
     let Some(monitor) = app.primary_monitor()? else {
         return Ok(());
     };
-
     let work_area = monitor.work_area();
     let window_size = window.outer_size()?;
-
-    let margin_x: i32 = 12;
-    let margin_y: i32 = 12;
-
+    let margin: i32 = 12;
     let min_x = work_area.position.x;
     let min_y = work_area.position.y;
     let max_x = work_area.position.x + work_area.size.width as i32 - window_size.width as i32;
     let max_y = work_area.position.y + work_area.size.height as i32 - window_size.height as i32;
-
-    let desired_x =
-        work_area.position.x + work_area.size.width as i32 - window_size.width as i32 - margin_x;
-    let desired_y =
-        work_area.position.y + work_area.size.height as i32 - window_size.height as i32 - margin_y;
-
-    let clamped_x = desired_x.clamp(min_x, max_x.max(min_x));
-    let clamped_y = desired_y.clamp(min_y, max_y.max(min_y));
-
-    window.set_position(tauri::PhysicalPosition::new(clamped_x, clamped_y))?;
+    let x =
+        (work_area.position.x + work_area.size.width as i32 - window_size.width as i32 - margin)
+            .clamp(min_x, max_x.max(min_x));
+    let y =
+        (work_area.position.y + work_area.size.height as i32 - window_size.height as i32 - margin)
+            .clamp(min_y, max_y.max(min_y));
+    window.set_position(tauri::PhysicalPosition::new(x, y))?;
     Ok(())
 }
 
-#[cfg(target_os = "windows")]
-fn startup_exe_command() -> Result<String, String> {
-    let exe_path = std::env::current_exe().map_err(|e| format!("Failed to get exe path: {e}"))?;
-    Ok(format!("\"{}\"", exe_path.display()))
-}
-
-#[cfg(target_os = "windows")]
-fn windows_run_key() -> Result<RegKey, String> {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (run_key, _) = hkcu
-        .create_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Run")
-        .map_err(|e| format!("Failed to open startup registry key: {e}"))?;
-    Ok(run_key)
-}
-
-#[cfg(target_os = "windows")]
-fn windows_prefs_key() -> Result<RegKey, String> {
-    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let (prefs_key, _) = hkcu
-        .create_subkey(APP_PREFS_REG_PATH)
-        .map_err(|e| format!("Failed to open app prefs registry key: {e}"))?;
-    Ok(prefs_key)
-}
-
-#[cfg(target_os = "windows")]
-fn set_windows_autostart(enabled: bool) -> Result<(), String> {
-    if cfg!(debug_assertions) {
-        return Ok(());
+fn active_tray_task(task: &Task, today: NaiveDate) -> bool {
+    match task.kind {
+        TaskKind::Today => task.due_date == Some(today) && !is_complete_today(task, today),
+        TaskKind::Daily => !is_complete_today(task, today),
     }
-
-    let run_key = windows_run_key()?;
-    if enabled {
-        let exe_path_quoted = startup_exe_command()?;
-        run_key
-            .set_value(STARTUP_REG_VALUE_NAME, &exe_path_quoted)
-            .map_err(|e| format!("Failed to set startup registry value: {e}"))?;
-    } else {
-        let _ = run_key.delete_value(STARTUP_REG_VALUE_NAME);
-    }
-
-    let pref_value: u32 = if enabled { 1 } else { 0 };
-    windows_prefs_key()?
-        .set_value(APP_PREF_STARTUP_VALUE_NAME, &pref_value)
-        .map_err(|e| format!("Failed to persist startup preference: {e}"))?;
-
-    Ok(())
 }
 
-#[cfg(not(target_os = "windows"))]
-fn set_windows_autostart(_enabled: bool) -> Result<(), String> {
-    Ok(())
+fn emit_tasks_changed(app: &AppHandle) {
+    let _ = app.emit("tasks-changed", ());
 }
 
-#[cfg(target_os = "windows")]
-fn launch_at_startup_enabled() -> Result<bool, String> {
-    if cfg!(debug_assertions) {
-        return Ok(false);
+fn refresh_tasks_and_menu(app: &AppHandle) -> Result<Vec<Task>, String> {
+    let state = app.state::<AppState>();
+    let tasks = list_tasks_from_store(&state)?;
+    tray::refresh_menu(app, &tasks)?;
+    Ok(tasks)
+}
+
+fn show_window_and_refresh(app: &AppHandle) {
+    if refresh_tasks_and_menu(app).is_ok() {
+        emit_tasks_changed(app);
     }
+    tray::show_main_window(app);
+}
 
-    let prefs_key = windows_prefs_key()?;
-    let pref: Result<u32, _> = prefs_key.get_value(APP_PREF_STARTUP_VALUE_NAME);
-
-    let enabled = match pref {
-        Ok(value) => value != 0,
-        Err(_) => true,
+fn request_exit(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        app.exit(0);
+        return;
     };
-
-    set_windows_autostart(enabled)?;
-    Ok(enabled)
+    let _ = window.show();
+    let _ = window.set_focus();
+    if let Err(error) = window.emit("quit-requested", ()) {
+        eprintln!("Failed to request a save before exit: {error}");
+    }
 }
 
-#[cfg(not(target_os = "windows"))]
-fn launch_at_startup_enabled() -> Result<bool, String> {
-    Ok(false)
+fn complete_task_from_tray(app: &AppHandle, task_id: i64) {
+    let today = Local::now().date_naive();
+    let result = (|| {
+        let state = app.state::<AppState>();
+        let mut guard = store_lock(&state)?;
+        let store = available_store_mut(&mut guard)?;
+        let tasks = store.list_tasks(today).map_err(|error| error.to_string())?;
+        if let Some(task) = tasks.iter().find(|task| task.id == task_id) {
+            if active_tray_task(task, today) {
+                store
+                    .set_task_completed(task_id, true, today)
+                    .map_err(|error| error.to_string())?;
+            }
+        }
+        store.list_tasks(today).map_err(|error| error.to_string())
+    })();
+
+    match result {
+        Ok(tasks) => {
+            if let Err(error) = tray::refresh_menu(app, &tasks) {
+                eprintln!("Failed to refresh tray menu: {error}");
+            }
+            emit_tasks_changed(app);
+        }
+        Err(error) => eprintln!("Failed to complete tray task: {error}"),
+    }
+}
+
+pub(crate) fn handle_tray_menu_event(app: &AppHandle, event: &str) {
+    match event {
+        "open-window" => show_window_and_refresh(app),
+        "exit-app" => request_exit(app),
+        _ => {
+            if let Some(id) = event.strip_prefix("complete-") {
+                if let Ok(task_id) = id.parse::<i64>() {
+                    complete_task_from_tray(app, task_id);
+                }
+            }
+        }
+    }
+}
+
+fn start_date_monitor(app: AppHandle) {
+    thread::spawn(move || {
+        let mut last_date = Local::now().date_naive();
+        loop {
+            thread::sleep(Duration::from_secs(60));
+            let current_date = Local::now().date_naive();
+            if current_date != last_date {
+                last_date = current_date;
+                match refresh_tasks_and_menu(&app) {
+                    Ok(_) => emit_tasks_changed(&app),
+                    Err(error) => eprintln!("Failed to refresh tasks after date change: {error}"),
+                }
+            }
+        }
+    });
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = place_window_bottom_right(app, &window);
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            show_window_and_refresh(app);
         }))
         .setup(|app| {
-            let launch_at_startup = match launch_at_startup_enabled() {
-                Ok(value) => value,
-                Err(err) => {
-                    eprintln!("[TickNest] Startup setup failed: {err}");
-                    false
-                }
-            };
+            let (store, startup_error, tasks, first_launch) = initialize_store(app);
+            app.manage(AppState {
+                store: Mutex::new(store),
+                startup_error,
+            });
 
             let main_window = app
                 .get_webview_window("main")
                 .expect("main window not found");
             let app_handle = app.handle().clone();
+            if first_launch {
+                place_window_bottom_right(&app_handle, &main_window)?;
+            }
 
-            // Initial positioning
-            place_window_bottom_right(&app_handle, &main_window)?;
+            let menu = tray::build_menu(app, &tasks)?;
+            tray::build_tray(&app_handle, &menu)?;
 
-            // Tray icon setup (use explicit asset for reliable updates)
-            let icon = tauri::include_image!("icons/32x32.png");
-            let startup_item = CheckMenuItem::with_id(
-                app,
-                STARTUP_MENU_ID,
-                "Launch at startup",
-                true,
-                launch_at_startup,
-                None::<&str>,
-            )?;
-            let startup_item_for_events = startup_item.clone();
-            let exit_item = MenuItem::with_id(app, "exit", "Exit", true, None::<&str>)?;
-            let tray_menu = Menu::with_items(app, &[&startup_item, &exit_item])?;
-            let _tray = TrayIconBuilder::new()
-                .icon(icon)
-                .menu(&tray_menu)
-                .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        button_state: MouseButtonState::Up,
-                        ..
-                    } = event
-                    {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = place_window_bottom_right(&app, &window);
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .on_menu_event(move |app, event| {
-                    let event_id = event.id().as_ref();
-                    if event_id == STARTUP_MENU_ID {
-                        let currently_enabled = launch_at_startup_enabled().unwrap_or(false);
-                        let next_value = !currently_enabled;
-
-                        if let Err(err) = set_windows_autostart(next_value) {
-                            eprintln!("[TickNest] Failed to update startup setting: {err}");
-                        }
-
-                        let _ = startup_item_for_events.set_checked(next_value);
-                    } else if event_id == "exit" {
-                        app.exit(0);
-                    }
-                })
-                .build(app)?;
-
-            let app_handle_for_events = app_handle.clone();
             let window_for_events = main_window.clone();
-            let auto_hide_enabled = !env_flag_enabled("TICKNEST_DISABLE_AUTO_HIDE");
-            let startup_instant = Instant::now();
-            main_window.on_window_event(move |event| match event {
-                WindowEvent::ScaleFactorChanged { .. } | WindowEvent::Resized(_) => {
-                    let _ = place_window_bottom_right(&app_handle_for_events, &window_for_events);
-                }
-                WindowEvent::Focused(false) if auto_hide_enabled => {
-                    if startup_instant.elapsed() < Duration::from_millis(900) {
-                        return;
-                    }
+            main_window.on_window_event(move |event| {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
                     let _ = window_for_events.hide();
                 }
-                _ => {}
             });
 
+            start_date_monitor(app_handle);
             Ok(())
         })
-        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            list_tasks,
+            create_task,
+            set_task_completed,
+            rename_task,
+            delete_task,
+            load_note,
+            save_note,
             hide_window,
-            load_tasks,
-            save_tasks
+            exit_after_save
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

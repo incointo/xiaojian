@@ -10,7 +10,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 use storage::{Store, StoreError};
-use tasks::{is_complete_today, Task, TaskKind};
+use tasks::{Task, TaskKind};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow, WindowEvent};
 
 pub struct AppState {
@@ -60,32 +60,19 @@ fn mutate_tasks<T>(
     mutation: impl FnOnce(&mut Store, NaiveDate) -> Result<T, StoreError>,
 ) -> Result<T, String> {
     let today = Local::now().date_naive();
-    let (value, tasks) = {
+    let value = {
         let mut guard = store_lock(state)?;
         let store = available_store_mut(&mut guard)?;
-        let value = mutation(store, today).map_err(|error| error.to_string())?;
-        let tasks = store.list_tasks(today);
-        (value, tasks)
+        mutation(store, today).map_err(|error| error.to_string())?
     };
 
-    match tasks {
-        Ok(tasks) => {
-            if let Err(error) = tray::refresh_menu(app, &tasks) {
-                eprintln!("Task was saved, but the tray menu could not refresh: {error}");
-            }
-        }
-        Err(error) => eprintln!("Task was saved, but the task list could not refresh: {error}"),
-    }
+    emit_tasks_changed(app);
     Ok(value)
 }
 
 #[tauri::command]
-fn list_tasks(state: State<'_, AppState>, app: AppHandle) -> Result<Vec<Task>, String> {
-    let tasks = list_tasks_from_store(&state)?;
-    if let Err(error) = tray::refresh_menu(&app, &tasks) {
-        eprintln!("Task list loaded, but the tray menu could not refresh: {error}");
-    }
-    Ok(tasks)
+fn list_tasks(state: State<'_, AppState>) -> Result<Vec<Task>, String> {
+    list_tasks_from_store(&state)
 }
 
 #[tauri::command]
@@ -146,6 +133,16 @@ fn save_note(note: String, state: State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 fn hide_window(window: WebviewWindow) -> Result<(), String> {
     window.hide().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn open_main_window(app: AppHandle) {
+    show_window_and_refresh(&app);
+}
+
+#[tauri::command]
+fn request_app_exit(app: AppHandle) {
+    request_exit(&app);
 }
 
 #[tauri::command]
@@ -216,32 +213,18 @@ fn place_window_bottom_right(app: &AppHandle, window: &WebviewWindow) -> Result<
     Ok(())
 }
 
-fn active_tray_task(task: &Task, today: NaiveDate) -> bool {
-    match task.kind {
-        TaskKind::Today => task.due_date == Some(today) && !is_complete_today(task, today),
-        TaskKind::Daily => !is_complete_today(task, today),
-    }
-}
-
 fn emit_tasks_changed(app: &AppHandle) {
     let _ = app.emit("tasks-changed", ());
 }
 
-fn refresh_tasks_and_menu(app: &AppHandle) -> Result<Vec<Task>, String> {
-    let state = app.state::<AppState>();
-    let tasks = list_tasks_from_store(&state)?;
-    tray::refresh_menu(app, &tasks)?;
-    Ok(tasks)
-}
-
 fn show_window_and_refresh(app: &AppHandle) {
-    if refresh_tasks_and_menu(app).is_ok() {
-        emit_tasks_changed(app);
-    }
+    tray::hide_quick_window(app);
     tray::show_main_window(app);
+    emit_tasks_changed(app);
 }
 
 fn request_exit(app: &AppHandle) {
+    tray::hide_quick_window(app);
     let Some(window) = app.get_webview_window("main") else {
         app.exit(0);
         return;
@@ -253,48 +236,6 @@ fn request_exit(app: &AppHandle) {
     }
 }
 
-fn complete_task_from_tray(app: &AppHandle, task_id: i64) {
-    let today = Local::now().date_naive();
-    let result = (|| {
-        let state = app.state::<AppState>();
-        let mut guard = store_lock(&state)?;
-        let store = available_store_mut(&mut guard)?;
-        let tasks = store.list_tasks(today).map_err(|error| error.to_string())?;
-        if let Some(task) = tasks.iter().find(|task| task.id == task_id) {
-            if active_tray_task(task, today) {
-                store
-                    .set_task_completed(task_id, true, today)
-                    .map_err(|error| error.to_string())?;
-            }
-        }
-        store.list_tasks(today).map_err(|error| error.to_string())
-    })();
-
-    match result {
-        Ok(tasks) => {
-            if let Err(error) = tray::refresh_menu(app, &tasks) {
-                eprintln!("Failed to refresh tray menu: {error}");
-            }
-            emit_tasks_changed(app);
-        }
-        Err(error) => eprintln!("Failed to complete tray task: {error}"),
-    }
-}
-
-pub(crate) fn handle_tray_menu_event(app: &AppHandle, event: &str) {
-    match event {
-        "open-window" => show_window_and_refresh(app),
-        "exit-app" => request_exit(app),
-        _ => {
-            if let Some(id) = event.strip_prefix("complete-") {
-                if let Ok(task_id) = id.parse::<i64>() {
-                    complete_task_from_tray(app, task_id);
-                }
-            }
-        }
-    }
-}
-
 fn start_date_monitor(app: AppHandle) {
     thread::spawn(move || {
         let mut last_date = Local::now().date_naive();
@@ -303,10 +244,7 @@ fn start_date_monitor(app: AppHandle) {
             let current_date = Local::now().date_naive();
             if current_date != last_date {
                 last_date = current_date;
-                match refresh_tasks_and_menu(&app) {
-                    Ok(_) => emit_tasks_changed(&app),
-                    Err(error) => eprintln!("Failed to refresh tasks after date change: {error}"),
-                }
+                emit_tasks_changed(&app);
             }
         }
     });
@@ -319,7 +257,7 @@ pub fn run() {
             show_window_and_refresh(app);
         }))
         .setup(|app| {
-            let (store, startup_error, tasks, first_launch) = initialize_store(app);
+            let (store, startup_error, _tasks, first_launch) = initialize_store(app);
             app.manage(AppState {
                 store: Mutex::new(store),
                 startup_error,
@@ -333,8 +271,7 @@ pub fn run() {
                 place_window_bottom_right(&app_handle, &main_window)?;
             }
 
-            let menu = tray::build_menu(app, &tasks)?;
-            tray::build_tray(&app_handle, &menu)?;
+            tray::build_tray(&app_handle)?;
 
             let window_for_events = main_window.clone();
             main_window.on_window_event(move |event| {
@@ -356,6 +293,8 @@ pub fn run() {
             load_note,
             save_note,
             hide_window,
+            open_main_window,
+            request_app_exit,
             exit_after_save
         ])
         .run(tauri::generate_context!())

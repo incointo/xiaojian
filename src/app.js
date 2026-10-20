@@ -1,6 +1,14 @@
 const invoke = window.__TAURI__.core.invoke;
 const listen = window.__TAURI__.event.listen;
 
+document.querySelector('.topbar').addEventListener('mousedown', (event) => {
+  if (event.button !== 0 || event.target.closest('button, input, select, textarea, a')) return;
+  event.preventDefault();
+  window.__TAURI__.window.getCurrentWindow().startDragging().catch((error) => {
+    showError(`无法拖动窗口：${describeError(error)}`, 'window');
+  });
+});
+
 const taskSections = document.querySelector('#task-sections');
 const taskForm = document.querySelector('#task-form');
 const taskInput = document.querySelector('#task-input');
@@ -29,6 +37,7 @@ const sections = {
 };
 
 let tasks = [];
+let taskLoadVersion = 0;
 let taskById = new Map();
 let lastSavedNote = '';
 let latestQueuedNote = '';
@@ -161,12 +170,15 @@ function renderTasks(nextTasks) {
 }
 
 async function reloadTasks() {
+  const version = ++taskLoadVersion;
   try {
     const nextTasks = await invoke('list_tasks');
+    if (version !== taskLoadVersion) return false;
     renderTasks(nextTasks);
     clearError('tasks');
     return true;
   } catch (error) {
+    if (version !== taskLoadVersion) return false;
     showError(describeError(error), 'tasks');
     return false;
   }
@@ -389,11 +401,14 @@ async function initialize() {
       }),
     ]);
 
+    const initialTaskVersion = ++taskLoadVersion;
     const [tasksResult, noteResult] = await Promise.allSettled([
       invoke('list_tasks'),
       invoke('load_note'),
     ]);
-    if (tasksResult.status === 'fulfilled') {
+    if (initialTaskVersion !== taskLoadVersion) {
+      // A newer task refresh already owns the display.
+    } else if (tasksResult.status === 'fulfilled') {
       renderTasks(tasksResult.value);
       clearError('tasks');
     } else {

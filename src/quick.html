@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小笺 · 快捷清单</title>
+    <link rel="stylesheet" href="quick.css" />
+    <script src="quick.js" defer></script>
+  </head>
+  <body>
+    <main class="quick-card">
+      <header class="quick-header">
+        <div class="quick-brand"><span class="quick-mark" aria-hidden="true">✓</span><div><h1>待办清单</h1><p id="quick-progress" role="status">正在读取…</p></div></div>
+        <button class="dismiss" id="dismiss" type="button" aria-label="收起清单" title="收起清单">×</button>
+      </header>
+      <div class="quick-error" id="quick-error" role="alert" hidden></div>
+      <div class="quick-content" id="quick-tasks">
+        <section aria-labelledby="quick-today-heading">
+          <div class="group-heading"><h2 id="quick-today-heading"><span class="dot today-dot" aria-hidden="true"></span>今日</h2><span id="quick-today-count">0 项</span></div>
+          <ul class="quick-list" id="quick-today"></ul>
+        </section>
+        <section aria-labelledby="quick-daily-heading">
+          <div class="group-heading"><h2 id="quick-daily-heading"><span class="dot daily-dot" aria-hidden="true"></span>每日</h2><span id="quick-daily-count">0 项</span></div>
+          <ul class="quick-list" id="quick-daily"></ul>
+        </section>
+      </div>
+      <footer class="quick-footer">
+        <button id="open-main" type="button">打开便笺<span aria-hidden="true">↗</span></button>
+        <button id="quit-app" type="button">退出</button>
+      </footer>
+    </main>
+  </body>
+</html>

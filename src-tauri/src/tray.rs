@@ -1,113 +1,122 @@
-use crate::tasks::{is_complete_today, Task, TaskKind};
-use crate::tray_helpers::{menu_item_id, menu_item_title};
-use chrono::{Local, NaiveDate};
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use crate::tray_helpers::popup_position;
+use std::sync::Mutex;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder,
+    WindowEvent,
+};
 
 pub const TRAY_ID: &str = "xiaojian-tray";
+static QUICK_OPEN_LOCK: Mutex<()> = Mutex::new(());
 
-pub fn build_menu<R: Runtime, M: Manager<R>>(
-    manager: &M,
-    tasks: &[Task],
-) -> tauri::Result<Menu<R>> {
-    let today = Local::now().date_naive();
-    let menu = Menu::new(manager)?;
-
-    menu.append(&MenuItem::with_id(
-        manager,
-        "open-window",
-        "打开小笺",
-        true,
-        None::<&str>,
-    )?)?;
-    menu.append(&PredefinedMenuItem::separator(manager)?)?;
-
-    menu.append(&MenuItem::new(manager, "今日", false, None::<&str>)?)?;
-    append_task_group(manager, &menu, tasks, TaskKind::Today, today)?;
-
-    menu.append(&PredefinedMenuItem::separator(manager)?)?;
-    menu.append(&MenuItem::new(manager, "每日", false, None::<&str>)?)?;
-    append_task_group(manager, &menu, tasks, TaskKind::Daily, today)?;
-
-    menu.append(&PredefinedMenuItem::separator(manager)?)?;
-    menu.append(&MenuItem::with_id(
-        manager,
-        "exit-app",
-        "退出",
-        true,
-        None::<&str>,
-    )?)?;
-    Ok(menu)
-}
-
-pub fn refresh_menu<R: Runtime>(app: &AppHandle<R>, tasks: &[Task]) -> Result<(), String> {
-    let menu = build_menu(app, tasks).map_err(|error| error.to_string())?;
-    let tray = app
-        .tray_by_id(TRAY_ID)
-        .ok_or_else(|| "system tray icon is unavailable".to_owned())?;
-    tray.set_menu(Some(menu)).map_err(|error| error.to_string())
-}
-
-pub fn build_tray(
-    app: &AppHandle,
-    menu: &Menu<tauri::Wry>,
-) -> tauri::Result<tauri::tray::TrayIcon> {
-    let icon = tauri::include_image!("icons/32x32.png");
+pub fn build_tray(app: &AppHandle) -> tauri::Result<tauri::tray::TrayIcon> {
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(icon)
-        .tooltip("小笺")
-        .menu(menu)
+        .icon(tauri::include_image!("icons/32x32.png"))
+        .tooltip("小笺 · 左键打开便笺，右键查看清单")
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
-                button: MouseButton::Left,
+                button,
                 button_state: MouseButtonState::Up,
+                position,
                 ..
             } = event
             {
                 let app = tray.app_handle();
-                show_main_window(app);
+                match button {
+                    MouseButton::Left => crate::show_window_and_refresh(app),
+                    MouseButton::Right => {
+                        // WebView2 creation must not block the Windows event loop.
+                        let app = app.clone();
+                        std::thread::spawn(move || {
+                            if let Err(error) = show_quick_window(&app, position) {
+                                eprintln!("Failed to open quick checklist: {error}");
+                                crate::show_window_and_refresh(&app);
+                            }
+                        });
+                    }
+                    _ => {}
+                }
             }
         })
-        .on_menu_event(|app, event| crate::handle_tray_menu_event(app, event.id().as_ref()))
         .build(app)
 }
 
-pub fn show_main_window<R: Runtime>(app: &AppHandle<R>) {
+fn show_quick_window(app: &AppHandle, pointer: PhysicalPosition<f64>) -> tauri::Result<()> {
+    // Rapid repeated tray clicks must not race to create the same window label.
+    let _opening = QUICK_OPEN_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let window = match app.get_webview_window("quick") {
+        Some(window) => window,
+        None => {
+            let window =
+                WebviewWindowBuilder::new(app, "quick", WebviewUrl::App("quick.html".into()))
+                    .title("小笺 · 快捷清单")
+                    .inner_size(340.0, 432.0)
+                    .decorations(false)
+                    .transparent(true)
+                    .shadow(false)
+                    .resizable(false)
+                    .skip_taskbar(true)
+                    .always_on_top(true)
+                    .visible(false)
+                    .focused(false)
+                    .build()?;
+            let dismiss = window.clone();
+            window.on_window_event(move |event| match event {
+                WindowEvent::Focused(false) => {
+                    let _ = dismiss.hide();
+                }
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = dismiss.hide();
+                }
+                _ => {}
+            });
+            window
+        }
+    };
+
+    if let Some(monitor) = window
+        .monitor_from_point(pointer.x, pointer.y)?
+        .or(app.primary_monitor()?)
+    {
+        let area = monitor.work_area();
+        let scale = monitor.scale_factor();
+        let size = PhysicalSize::new(
+            ((340.0 * scale) as u32).min(area.size.width.saturating_sub(24).max(1)),
+            ((432.0 * scale) as u32).min(area.size.height.saturating_sub(24).max(1)),
+        );
+        let (x, y) = popup_position(
+            (pointer.x as i32, pointer.y as i32),
+            (size.width, size.height),
+            (
+                area.position.x,
+                area.position.y,
+                area.size.width,
+                area.size.height,
+            ),
+        );
+        window.set_position(PhysicalPosition::new(x, y))?;
+        window.set_size(size)?;
+    }
+    window.show()?;
+    window.set_focus()?;
+    window.emit("quick-opened", ())?;
+    Ok(())
+}
+
+pub fn hide_quick_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("quick") {
+        let _ = window.hide();
+    }
+}
+
+pub fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
-    }
-}
-
-fn append_task_group<R: Runtime, M: Manager<R>>(
-    manager: &M,
-    menu: &Menu<R>,
-    tasks: &[Task],
-    kind: TaskKind,
-    today: NaiveDate,
-) -> tauri::Result<()> {
-    let mut found = false;
-    for task in tasks
-        .iter()
-        .filter(|task| task.kind == kind && is_active_in_tray(task, today))
-    {
-        let label = menu_item_title(&task.title).replace('&', "&&");
-        let item = MenuItem::with_id(manager, menu_item_id(task.id), label, true, None::<&str>)?;
-        menu.append(&item)?;
-        found = true;
-    }
-    if !found {
-        menu.append(&MenuItem::new(manager, "没有待办", false, None::<&str>)?)?;
-    }
-    Ok(())
-}
-
-fn is_active_in_tray(task: &Task, today: NaiveDate) -> bool {
-    match task.kind {
-        TaskKind::Today => task.due_date == Some(today) && !is_complete_today(task, today),
-        TaskKind::Daily => !is_complete_today(task, today),
     }
 }

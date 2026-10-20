@@ -1,3 +1,5 @@
+pub mod tasks;
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;

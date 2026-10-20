@@ -1,3 +1,4 @@
+pub mod storage;
 pub mod tasks;
 
 use serde::{Deserialize, Serialize};
@@ -47,14 +48,24 @@ fn write_tasks_file(path: &PathBuf, tasks: &[Task]) -> Result<(), String> {
 
     let temp_path = path.with_extension("json.tmp");
 
-    let mut temp_file = fs::File::create(&temp_path)
-        .map_err(|e| format!("Failed to create temp tasks file at {}: {e}", temp_path.display()))?;
-    temp_file
-        .write_all(json.as_bytes())
-        .map_err(|e| format!("Failed to write temp tasks file at {}: {e}", temp_path.display()))?;
-    temp_file
-        .sync_all()
-        .map_err(|e| format!("Failed to flush temp tasks file at {}: {e}", temp_path.display()))?;
+    let mut temp_file = fs::File::create(&temp_path).map_err(|e| {
+        format!(
+            "Failed to create temp tasks file at {}: {e}",
+            temp_path.display()
+        )
+    })?;
+    temp_file.write_all(json.as_bytes()).map_err(|e| {
+        format!(
+            "Failed to write temp tasks file at {}: {e}",
+            temp_path.display()
+        )
+    })?;
+    temp_file.sync_all().map_err(|e| {
+        format!(
+            "Failed to flush temp tasks file at {}: {e}",
+            temp_path.display()
+        )
+    })?;
 
     if path.exists() {
         let _ = fs::remove_file(path);
@@ -132,8 +143,10 @@ fn place_window_bottom_right(
     let max_x = work_area.position.x + work_area.size.width as i32 - window_size.width as i32;
     let max_y = work_area.position.y + work_area.size.height as i32 - window_size.height as i32;
 
-    let desired_x = work_area.position.x + work_area.size.width as i32 - window_size.width as i32 - margin_x;
-    let desired_y = work_area.position.y + work_area.size.height as i32 - window_size.height as i32 - margin_y;
+    let desired_x =
+        work_area.position.x + work_area.size.width as i32 - window_size.width as i32 - margin_x;
+    let desired_y =
+        work_area.position.y + work_area.size.height as i32 - window_size.height as i32 - margin_y;
 
     let clamped_x = desired_x.clamp(min_x, max_x.max(min_x));
     let clamped_y = desired_y.clamp(min_y, max_y.max(min_y));
@@ -238,7 +251,9 @@ pub fn run() {
                 }
             };
 
-            let main_window = app.get_webview_window("main").expect("main window not found");
+            let main_window = app
+                .get_webview_window("main")
+                .expect("main window not found");
             let app_handle = app.handle().clone();
 
             // Initial positioning
@@ -312,7 +327,11 @@ pub fn run() {
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![hide_window, load_tasks, save_tasks])
+        .invoke_handler(tauri::generate_handler![
+            hide_window,
+            load_tasks,
+            save_tasks
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

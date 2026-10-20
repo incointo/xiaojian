@@ -141,6 +141,20 @@ fn open_main_window(app: AppHandle) {
 }
 
 #[tauri::command]
+fn open_quick_checklist(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let position = window.outer_position().map_err(|error| error.to_string())?;
+    let size = window.outer_size().map_err(|error| error.to_string())?;
+    tray::open_quick_checklist(
+        &app,
+        tauri::PhysicalPosition::new(
+            (position.x + size.width as i32) as f64,
+            (position.y + size.height as i32) as f64,
+        ),
+    );
+    Ok(())
+}
+
+#[tauri::command]
 fn request_app_exit(app: AppHandle) {
     request_exit(&app);
 }
@@ -294,6 +308,7 @@ pub fn run() {
             save_note,
             hide_window,
             open_main_window,
+            open_quick_checklist,
             request_app_exit,
             exit_after_save
         ])

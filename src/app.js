@@ -399,6 +399,9 @@ async function initialize() {
       listen('quit-requested', () => {
         void handleQuitRequest();
       }),
+      listen('quick-open-error', (event) => {
+        showError(event.payload, 'window');
+      }),
     ]);
 
     const initialTaskVersion = ++taskLoadVersion;
@@ -453,4 +456,10 @@ document.querySelector('#hide-window').addEventListener('click', async () => {
 });
 
 updateInputHint();
+document.querySelector('#open-quick').addEventListener('click', async () => {
+  try {
+    clearError('window');
+    await invoke('open_quick_checklist');
+  } catch (error) { showError(describeError(error), 'window'); }
+});
 void initialize();

@@ -30,7 +30,7 @@ body {
   padding: 0;
   background: var(--paper);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 15px;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -95,7 +95,7 @@ button {
 
 .brand-name {
   color: #3d483d;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 650;
   letter-spacing: 0.12em;
 }
@@ -108,7 +108,7 @@ button {
 
 .date-label {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 14px;
   letter-spacing: 0.02em;
 }
 
@@ -149,7 +149,7 @@ button {
   border-radius: 9px;
   background: #fbf0eb;
   color: #874b36;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -213,7 +213,7 @@ button {
 .note-heading h2 {
   margin: 0;
   color: #475046;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 650;
   letter-spacing: 0.03em;
 }
@@ -245,7 +245,7 @@ button {
   border-radius: 10px;
   background: #f0f0e9;
   color: #777f73;
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -284,7 +284,7 @@ button {
   background: transparent;
   color: white;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1;
   transition: background 120ms ease, border-color 120ms ease;
 }
@@ -303,7 +303,7 @@ button {
   min-width: 0;
   overflow-wrap: anywhere;
   color: #434a41;
-  font-size: 12px;
+  font-size: 16px;
   line-height: 1.45;
 }
 
@@ -335,7 +335,7 @@ button {
   background: transparent;
   color: #8b9187;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 17px;
   line-height: 1;
 }
 
@@ -352,7 +352,7 @@ button {
 .empty-message {
   padding: 7px 4px 8px 30px;
   color: #a1a59c;
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .completed-list {
@@ -368,7 +368,7 @@ button {
   padding: 5px 0;
   color: #8e948a;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 12px;
   list-style: none;
   user-select: none;
 }
@@ -381,7 +381,7 @@ button {
   width: 11px;
   color: #a5aa9f;
   content: "+";
-  font-size: 13px;
+  font-size: 15px;
   text-align: center;
 }
 
@@ -417,7 +417,7 @@ button {
 
 .new-task-form input {
   height: 30px;
-  font-size: 12px;
+  font-size: 16px;
 }
 
 .new-task-form input::placeholder,
@@ -431,7 +431,7 @@ button {
   padding: 0 2px;
   color: #788174;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .add-button {
@@ -459,7 +459,7 @@ button {
   margin-top: -5px;
   padding-right: 4px;
   color: #a2a69d;
-  font-size: 9px;
+  font-size: 12px;
   text-align: right;
 }
 
@@ -470,7 +470,7 @@ button {
 .note-section {
   display: flex;
   min-height: 108px;
-  height: 132px;
+  height: 150px;
   flex-direction: column;
   gap: 8px;
   padding: 10px 11px 8px;
@@ -487,18 +487,18 @@ button {
 }
 
 .note-heading h2 {
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .note-heading p {
   margin: 3px 0 0;
   color: #9a9e94;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .save-status {
   color: #869181;
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .save-status.is-saving {
@@ -517,7 +517,7 @@ button {
   outline: 0;
   background: transparent;
   color: #52594e;
-  font-size: 11px;
+  font-size: 15px;
   line-height: 1.55;
   scrollbar-width: thin;
 }

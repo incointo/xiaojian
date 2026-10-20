@@ -49,10 +49,10 @@ pub fn refresh_menu<R: Runtime>(app: &AppHandle<R>, tasks: &[Task]) -> Result<()
     tray.set_menu(Some(menu)).map_err(|error| error.to_string())
 }
 
-pub fn build_tray<R: Runtime>(
-    app: &AppHandle<R>,
-    menu: &Menu<R>,
-) -> tauri::Result<tauri::tray::TrayIcon<R>> {
+pub fn build_tray(
+    app: &AppHandle,
+    menu: &Menu<tauri::Wry>,
+) -> tauri::Result<tauri::tray::TrayIcon> {
     let icon = tauri::include_image!("icons/32x32.png");
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)

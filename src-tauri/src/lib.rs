@@ -2,6 +2,7 @@ pub mod storage;
 pub mod tasks;
 pub mod tray;
 pub mod tray_helpers;
+pub mod window_layout;
 
 use chrono::{Local, NaiveDate};
 use std::fs;
@@ -37,12 +38,6 @@ fn available_store_mut<'a>(
 ) -> Result<&'a mut Store, String> {
     guard
         .as_mut()
-        .ok_or_else(|| "本地数据库当前不可用。".to_owned())
-}
-
-fn available_store_ref<'a>(guard: &'a MutexGuard<'_, Option<Store>>) -> Result<&'a Store, String> {
-    guard
-        .as_ref()
         .ok_or_else(|| "本地数据库当前不可用。".to_owned())
 }
 
@@ -115,22 +110,6 @@ fn delete_task(id: i64, state: State<'_, AppState>, app: AppHandle) -> Result<()
 }
 
 #[tauri::command]
-fn load_note(state: State<'_, AppState>) -> Result<String, String> {
-    let guard = store_lock(&state)?;
-    available_store_ref(&guard)?
-        .load_note()
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn save_note(note: String, state: State<'_, AppState>) -> Result<(), String> {
-    let mut guard = store_lock(&state)?;
-    available_store_mut(&mut guard)?
-        .save_note(&note)
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn hide_window(window: WebviewWindow) -> Result<(), String> {
     window.hide().map_err(|error| error.to_string())
 }
@@ -160,8 +139,67 @@ fn request_app_exit(app: AppHandle) {
 }
 
 #[tauri::command]
-fn exit_after_save(app: AppHandle) {
+fn exit_app(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    // Mutations commit before releasing this lock, including writes from the quick window.
+    let _store = state
+        .store
+        .lock()
+        .map_err(|_| "任务保存状态不可用，请重试。".to_owned())?;
     app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+fn fit_main_height(window: WebviewWindow, height: f64) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("仅主窗口可自动调整高度。".to_owned());
+    }
+    fit_main_height_inner(&window, height).map_err(|error| error.to_string())
+}
+
+fn fit_main_height_inner(window: &WebviewWindow, height: f64) -> tauri::Result<()> {
+    let Some(monitor) = window.current_monitor()?.or(window.primary_monitor()?) else {
+        return Ok(());
+    };
+    let area = monitor.work_area();
+    let scale = window.scale_factor()?;
+    let inner = window.inner_size()?;
+    let outer = window.outer_size()?;
+    let position = window.outer_position()?;
+    let frame_height = outer.height.saturating_sub(inner.height);
+    let Some(plan) = window_layout::main_height_plan(
+        height,
+        scale,
+        area.position.y,
+        area.size.height.saturating_sub(frame_height),
+        position.y,
+    ) else {
+        return Ok(());
+    };
+    // Windows reapplies the current size when constraints change. Avoid repeatedly
+    // setting identical constraints in response to our own resize notifications.
+    static LAST_MINIMUM: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+    let minimum = (
+        (window_layout::MIN_WIDTH * scale).ceil() as u32,
+        plan.min_height,
+    );
+    {
+        let mut previous = LAST_MINIMUM
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if *previous != Some(minimum) {
+            window.set_min_size(Some(tauri::PhysicalSize::new(minimum.0, minimum.1)))?;
+            *previous = Some(minimum);
+        }
+    }
+    if inner.height.abs_diff(plan.height) > 1 {
+        // Retain the current physical width; automatic fitting never chooses a width.
+        window.set_size(tauri::PhysicalSize::new(inner.width, plan.height))?;
+    }
+    if position.y != plan.top {
+        window.set_position(tauri::PhysicalPosition::new(position.x, plan.top))?;
+    }
+    Ok(())
 }
 
 fn app_data_database(app: &tauri::App) -> Result<(PathBuf, bool), String> {
@@ -293,6 +331,14 @@ pub fn run() {
                     api.prevent_close();
                     let _ = window_for_events.hide();
                 }
+                if matches!(
+                    event,
+                    WindowEvent::Moved(_)
+                        | WindowEvent::Resized(_)
+                        | WindowEvent::ScaleFactorChanged { .. }
+                ) {
+                    let _ = window_for_events.emit("window-geometry-changed", ());
+                }
             });
 
             start_date_monitor(app_handle);
@@ -304,13 +350,12 @@ pub fn run() {
             set_task_completed,
             rename_task,
             delete_task,
-            load_note,
-            save_note,
             hide_window,
             open_main_window,
             open_quick_checklist,
             request_app_exit,
-            exit_after_save
+            exit_app,
+            fit_main_height
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

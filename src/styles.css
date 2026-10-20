@@ -172,7 +172,12 @@ button {
   padding-right: 3px;
   scrollbar-color: #d2d7ce transparent;
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
 }
+
+.task-content { display: flow-root; }
+.task-entry { display: flex; flex: 0 0 auto; flex-direction: column; gap: 5px; }
+.topbar, .app-error { flex-shrink: 0; }
 
 .task-sections::-webkit-scrollbar {
   width: 5px;
@@ -209,8 +214,7 @@ button {
 }
 
 .section-title-wrap h1,
-.section-title-wrap h2,
-.note-heading h2 {
+.section-title-wrap h2 {
   margin: 0;
   color: #475046;
   font-size: 15px;
@@ -420,8 +424,7 @@ button {
   font-size: 16px;
 }
 
-.new-task-form input::placeholder,
-.note-section textarea::placeholder {
+.new-task-form input::placeholder {
   color: #a8aca2;
 }
 
@@ -455,8 +458,8 @@ button {
 }
 
 .input-hint {
-  min-height: 11px;
-  margin-top: -5px;
+  min-height: 15px;
+  margin-top: 0;
   padding-right: 4px;
   color: #a2a69d;
   font-size: 12px;
@@ -465,66 +468,6 @@ button {
 
 .input-hint.is-invalid {
   color: #b45e42;
-}
-
-.note-section {
-  display: flex;
-  min-height: 108px;
-  height: 150px;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 11px 8px;
-  border: 1px solid #e9e6db;
-  border-radius: 11px;
-  background: #f5f2e9;
-}
-
-.note-heading {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.note-heading h2 {
-  font-size: 14px;
-}
-
-.note-heading p {
-  margin: 3px 0 0;
-  color: #9a9e94;
-  font-size: 12px;
-}
-
-.save-status {
-  color: #869181;
-  font-size: 12px;
-}
-
-.save-status.is-saving {
-  color: #a2875c;
-}
-
-.save-status.is-error {
-  color: #ae5c46;
-}
-
-.note-section textarea {
-  min-height: 0;
-  flex: 1;
-  resize: none;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: #52594e;
-  font-size: 15px;
-  line-height: 1.55;
-  scrollbar-width: thin;
-}
-
-.note-section textarea:disabled {
-  cursor: not-allowed;
-  opacity: 0.72;
 }
 
 .rename-form {
@@ -586,7 +529,7 @@ button {
 }
 
 .delete-dialog .delete-task-title {
-  max-height: 120px;
+  max-height: min(120px, 25vh);
   padding: 10px 12px;
   overflow: auto;
   border-radius: 8px;

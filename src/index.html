@@ -26,6 +26,7 @@
 
       <main class="main-content">
         <div class="task-sections" id="task-sections" aria-live="polite">
+          <div id="task-content" class="task-content">
           <section class="task-section" aria-labelledby="today-heading">
             <div class="section-heading">
               <div class="section-title-wrap">
@@ -55,8 +56,10 @@
               <ul class="task-list completed-items" id="daily-completed-list"></ul>
             </details>
           </section>
+          </div>
         </div>
 
+        <div class="task-entry" id="task-entry">
         <form class="new-task-form" id="task-form">
           <input
             id="task-input"
@@ -73,17 +76,7 @@
           <button class="add-button" type="submit" aria-label="添加任务" title="添加任务">+</button>
         </form>
         <div class="input-hint" id="input-hint" aria-live="polite"></div>
-
-        <section class="note-section" aria-labelledby="note-heading">
-          <div class="note-heading">
-            <div>
-              <h2 id="note-heading">随手记</h2>
-              <p>只保存在这台电脑</p>
-            </div>
-            <span class="save-status" id="save-status" role="status">已保存</span>
-          </div>
-          <textarea id="note-input" aria-label="随手记内容" placeholder="写点备忘…" spellcheck="false" disabled></textarea>
-        </section>
+        </div>
       </main>
     </div>
     <dialog class="delete-dialog" id="delete-dialog" aria-labelledby="delete-dialog-heading" aria-describedby="delete-description delete-task-title">

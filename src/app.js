@@ -16,8 +16,7 @@ const taskKind = document.querySelector('#task-kind');
 const inputHint = document.querySelector('#input-hint');
 const appError = document.querySelector('#app-error');
 const dateLabel = document.querySelector('#date-label');
-const noteInput = document.querySelector('#note-input');
-const saveStatus = document.querySelector('#save-status');
+const taskContent = document.querySelector('#task-content');
 const deleteDialog = document.querySelector('#delete-dialog');
 const deletingTaskIds = new Set();
 
@@ -41,17 +40,46 @@ const sections = {
 let tasks = [];
 let taskLoadVersion = 0;
 let taskById = new Map();
-let lastSavedNote = '';
-let latestQueuedNote = '';
-let pendingNoteWrites = 0;
-let noteSaveTimer = 0;
-let noteSaveQueue = Promise.resolve();
+const pendingTaskWrites = new Set();
 let quitRequest = null;
-let resolveNoteReady;
+let isQuitting = false;
 const appErrors = new Map();
-const noteReady = new Promise((resolve) => {
-  resolveNoteReady = resolve;
-});
+let layoutReady = false;
+let heightTimer = 0;
+let heightInFlight = false;
+let heightDirty = false;
+
+function scheduleAutoHeight() {
+  heightDirty = true;
+  window.clearTimeout(heightTimer);
+  heightTimer = window.setTimeout(() => { void fitContentHeight(); }, 80);
+}
+
+async function fitContentHeight() {
+  if (!layoutReady || heightInFlight || deleteDialog.open || isQuitting) return;
+  heightDirty = false;
+  heightInFlight = true;
+  try {
+    const chromeHeight = document.querySelector('#app').getBoundingClientRect().height -
+      taskSections.getBoundingClientRect().height;
+    const height = Math.ceil(chromeHeight + taskContent.getBoundingClientRect().height - 0.01);
+    await invoke('fit_main_height', { height });
+    clearError('layout');
+  } catch (error) {
+    showError(`窗口高度调整失败：${describeError(error)}`, 'layout');
+  } finally {
+    heightInFlight = false;
+    if (heightDirty && !isQuitting) scheduleAutoHeight();
+  }
+}
+
+async function writeTask(command, args) {
+  if (isQuitting) throw new Error('正在退出，请稍候。');
+  const operation = invoke(command, args);
+  pendingTaskWrites.add(operation);
+  try { return await operation; }
+  finally { pendingTaskWrites.delete(operation); }
+}
 
 function localDateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -210,7 +238,7 @@ async function addTask(event) {
   }
 
   try {
-    await invoke('create_task', { title, kind: taskKind.value });
+    await writeTask('create_task', { title, kind: taskKind.value });
     taskInput.value = '';
     updateInputHint();
     await reloadTasks();
@@ -265,7 +293,7 @@ function startRename(row, task) {
       return;
     }
     try {
-      await invoke('rename_task', { id: task.id, title });
+      await writeTask('rename_task', { id: task.id, title });
       clearError('tasks');
       await reloadTasks();
     } catch (error) {
@@ -284,6 +312,7 @@ function confirmTaskDeletion(task) {
   deleteDialog.returnValue = 'cancel';
   return new Promise((resolve) => {
     deleteDialog.addEventListener('close', () => {
+      scheduleAutoHeight();
       resolve(deleteDialog.returnValue === 'delete');
     }, { once: true });
     deleteDialog.showModal();
@@ -331,7 +360,7 @@ async function handleTaskAction(event) {
       if (!await confirmTaskDeletion(task)) return;
       deletingTaskIds.add(id);
       button.disabled = true;
-      await invoke('delete_task', { id });
+      await writeTask('delete_task', { id });
       clearError('tasks');
       await reloadTasks();
       taskInput.focus();
@@ -346,7 +375,7 @@ async function handleTaskAction(event) {
   if (button.dataset.action === 'toggle') {
     const completed = button.dataset.completed !== 'true';
     try {
-      await invoke('set_task_completed', { id, completed });
+      await writeTask('set_task_completed', { id, completed });
       clearError('tasks');
       await reloadTasks();
     } catch (error) {
@@ -355,80 +384,20 @@ async function handleTaskAction(event) {
   }
 }
 
-function setSaveStatus(label, state = '') {
-  saveStatus.textContent = label;
-  saveStatus.classList.toggle('is-saving', state === 'saving');
-  saveStatus.classList.toggle('is-error', state === 'error');
-}
-
-function scheduleNoteSave() {
-  window.clearTimeout(noteSaveTimer);
-  setSaveStatus('未保存', 'saving');
-  noteSaveTimer = window.setTimeout(() => {
-    void persistNote();
-  }, 300);
-}
-
-async function persistNote(force = false) {
-  const ready = await noteReady;
-  if (!ready) {
-    const error = new Error('便笺尚未成功读取，暂不保存以免覆盖原内容。请重新启动小笺后重试。');
-    setSaveStatus('读取失败', 'error');
-    showError(error.message, 'note');
-    if (force) throw error;
-    return false;
-  }
-  window.clearTimeout(noteSaveTimer);
-  const value = noteInput.value;
-  if (!force && value === lastSavedNote && pendingNoteWrites === 0) return true;
-  if (!force && value === latestQueuedNote && pendingNoteWrites > 0) {
-    return noteSaveQueue.then(() => true).catch(() => false);
-  }
-
-  latestQueuedNote = value;
-  pendingNoteWrites += 1;
-  setSaveStatus('保存中…', 'saving');
-  const operation = noteSaveQueue.catch(() => undefined).then(() => invoke('save_note', { note: value }));
-  noteSaveQueue = operation;
-
-  try {
-    await operation;
-    lastSavedNote = value;
-    if (noteInput.value === value) {
-      setSaveStatus('已保存');
-      clearError('note');
-    } else {
-      setSaveStatus('未保存', 'saving');
-    }
-    return true;
-  } catch (error) {
-    setSaveStatus('保存失败', 'error');
-    showError(`便笺未能保存：${describeError(error)}`, 'note');
-    if (force) throw error;
-    return false;
-  } finally {
-    pendingNoteWrites -= 1;
-  }
-}
-
 async function handleQuitRequest() {
   if (quitRequest) return quitRequest;
+  isQuitting = true;
+  document.querySelector('.main-content').inert = true;
   quitRequest = (async () => {
     try {
-      const noteWasLoaded = await noteReady;
-      if (!noteWasLoaded) {
-        // The editor stays disabled until a successful load, so no user edits can be lost here.
-        await invoke('exit_after_save');
-        return;
-      }
-      await persistNote(true);
-      await noteSaveQueue;
-      await invoke('exit_after_save');
+      clearError('exit');
+      await Promise.all([...pendingTaskWrites]);
+      await invoke('exit_app');
     } catch (error) {
-      noteInput.focus();
-      setSaveStatus('保存失败', 'error');
-      showError(`退出前保存失败：${describeError(error)}`, 'note');
+      showError(`任务尚未保存，已暂停退出：${describeError(error)}`, 'exit');
     } finally {
+      isQuitting = false;
+      document.querySelector('.main-content').inert = false;
       quitRequest = null;
     }
   })();
@@ -436,63 +405,29 @@ async function handleQuitRequest() {
 }
 
 async function initialize() {
-  let noteReadyResolved = false;
   try {
     await Promise.all([
-      listen('tasks-changed', () => {
-        void reloadTasks();
-      }),
-      listen('quit-requested', () => {
-        void handleQuitRequest();
-      }),
-      listen('quick-open-error', (event) => {
-        showError(event.payload, 'window');
-      }),
+      listen('tasks-changed', () => { void reloadTasks(); }),
+      listen('quit-requested', () => { void handleQuitRequest(); }),
+      listen('window-geometry-changed', scheduleAutoHeight),
+      listen('quick-open-error', (event) => { showError(event.payload, 'window'); }),
     ]);
-
-    const initialTaskVersion = ++taskLoadVersion;
-    const [tasksResult, noteResult] = await Promise.allSettled([
-      invoke('list_tasks'),
-      invoke('load_note'),
-    ]);
-    if (initialTaskVersion !== taskLoadVersion) {
-      // A newer task refresh already owns the display.
-    } else if (tasksResult.status === 'fulfilled') {
-      renderTasks(tasksResult.value);
-      clearError('tasks');
-    } else {
-      showError(describeError(tasksResult.reason), 'tasks');
-    }
-    if (noteResult.status === 'fulfilled') {
-      noteInput.value = noteResult.value;
-      noteInput.disabled = false;
-      lastSavedNote = noteResult.value;
-      latestQueuedNote = noteResult.value;
-      setSaveStatus('已保存');
-      clearError('note');
-      resolveNoteReady(true);
-      noteReadyResolved = true;
-    } else {
-      setSaveStatus('读取失败', 'error');
-      showError(`便笺读取失败：${describeError(noteResult.reason)}`, 'note');
-      resolveNoteReady(false);
-      noteReadyResolved = true;
-    }
-  } catch (error) {
-    showError(describeError(error), 'app');
-    setSaveStatus('未连接', 'error');
-  } finally {
-    if (!noteReadyResolved) resolveNoteReady(false);
+    await reloadTasks();
+  } catch (error) { showError(describeError(error), 'app'); }
+  finally {
+    layoutReady = true;
+    scheduleAutoHeight();
   }
+}
+
+const heightObserver = new ResizeObserver(scheduleAutoHeight);
+for (const element of [taskContent, appError, document.querySelector('.topbar'), document.querySelector('#task-entry')]) {
+  heightObserver.observe(element);
 }
 
 taskForm.addEventListener('submit', addTask);
 taskInput.addEventListener('input', updateInputHint);
 taskSections.addEventListener('click', handleTaskAction);
-noteInput.addEventListener('input', scheduleNoteSave);
-noteInput.addEventListener('blur', () => {
-  void persistNote(true);
-});
 document.querySelector('#hide-window').addEventListener('click', async () => {
   try {
     await invoke('hide_window');

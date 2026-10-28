@@ -127,7 +127,8 @@ impl Store {
                 "SELECT id, title, kind, due_date, completed_on, sort_order
                  FROM tasks
                  WHERE kind = 'daily'
-                    OR (kind = 'today' AND (due_date = ?1 OR completed_on IS NOT NULL))
+                    OR (kind = 'today' AND (completed_on = ?1
+                        OR (completed_on IS NULL AND due_date = ?1)))
                  ORDER BY CASE kind WHEN 'today' THEN 0 ELSE 1 END, sort_order, id",
             )?;
             let rows = statement.query_map([&date], task_from_row)?;

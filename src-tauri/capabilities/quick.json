@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "quick",
   "description": "Local quick checklist event subscriptions",
-  "windows": ["quick"],
+  "windows": ["quick", "quick-*"],
   "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
 }

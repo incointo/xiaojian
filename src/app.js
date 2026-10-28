@@ -411,6 +411,7 @@ async function initialize() {
       listen('quit-requested', () => { void handleQuitRequest(); }),
       listen('window-geometry-changed', scheduleAutoHeight),
       listen('quick-open-error', (event) => { showError(event.payload, 'window'); }),
+      listen('quick-open-recovered', () => { clearError('window'); }),
     ]);
     await reloadTasks();
   } catch (error) { showError(describeError(error), 'app'); }
